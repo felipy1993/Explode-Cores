@@ -82,6 +82,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
+  // Star Thresholds
+  const star1Score = level.targetScore;
+  const star2Score = Math.floor(level.targetScore * 1.5);
+  const star3Score = Math.floor(level.targetScore * 2.5);
+
   // --- INITIALIZATION ---
   useEffect(() => {
     isMountedRef.current = true;
@@ -424,42 +429,55 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     } else if (level.objective === 'COLLECT_POTIONS') {
         if (potionsCollected >= level.objectiveTarget) hasWon = true;
     }
+    
+    // NOTE: Only end immediately if moves run out. 
+    // If goal is reached (Star 1), let them keep playing for higher stars until moves run out?
+    // Standard match-3 usually ends immediately if it's collection, but SCORE levels usually let you play until moves end OR target reached?
+    // Actually, traditionally Score levels end when target reached, but Collection levels end when collection done.
+    // The user complained matches end too fast. So we increased targets. 
+    // We will stick to: End if Won OR End if No Moves.
 
-    if (hasWon) {
-        isEndingRef.current = true; 
-        audioManager.playSfx('win');
-        const moveBonus = movesLeft * POINTS_PER_MOVE;
-        const finalScore = score + moveBonus;
-        triggerShake('high'); 
-
-        const star3Score = level.targetScore * 1.5;
-        const star2Score = level.targetScore * 1.2;
-        const stars = finalScore >= star3Score ? 3 : finalScore >= star2Score ? 2 : 1;
-
-        const baseCoins = 50; 
-        const starBonus = stars * 25; 
-        const movesCoinBonus = movesLeft * 2;
-        const totalCoins = baseCoins + starBonus + movesCoinBonus;
+    if (hasWon || movesLeft <= 0) {
+        // If we won (reached target), we end. 
+        // If we ran out of moves, we check if we won (collected enough stuff or got enough score).
         
-        // Delay slighty for effect
-        setTimeout(() => {
-            if (isMountedRef.current) {
-                setScore(finalScore);
-                setGameResult({ won: true, score: finalScore, stars, coinsEarned: totalCoins });
-            }
-        }, 500);
+        // Double check for Score levels: Only win if score met.
+        // For Potion levels: Only win if Potions met.
+        let actualWin = false;
+        if (level.objective === 'SCORE' && score >= level.targetScore) actualWin = true;
+        if (level.objective === 'COLLECT_POTIONS' && potionsCollected >= level.objectiveTarget) actualWin = true;
+        
+        if (actualWin) {
+            isEndingRef.current = true; 
+            audioManager.playSfx('win');
+            const moveBonus = movesLeft * POINTS_PER_MOVE;
+            const finalScore = score + moveBonus;
+            triggerShake('high'); 
 
-    } else if (movesLeft <= 0) {
-        // If out of moves, and not processing (checked in guard), then lose
-        isEndingRef.current = true;
-        audioManager.playSfx('lose');
-        setTimeout(() => {
-             if (isMountedRef.current) {
-                setGameResult({ won: false, score, stars: 0, coinsEarned: 10 });
-             }
-        }, 500);
+            const stars = finalScore >= star3Score ? 3 : finalScore >= star2Score ? 2 : 1;
+
+            const baseCoins = 50; 
+            const starBonus = stars * 25; 
+            const movesCoinBonus = movesLeft * 2;
+            const totalCoins = baseCoins + starBonus + movesCoinBonus;
+            
+            setTimeout(() => {
+                if (isMountedRef.current) {
+                    setScore(finalScore);
+                    setGameResult({ won: true, score: finalScore, stars, coinsEarned: totalCoins });
+                }
+            }, 500);
+        } else if (movesLeft <= 0) {
+            isEndingRef.current = true;
+            audioManager.playSfx('lose');
+            setTimeout(() => {
+                if (isMountedRef.current) {
+                    setGameResult({ won: false, score, stars: 0, coinsEarned: 10 });
+                }
+            }, 500);
+        }
     }
-  }, [score, potionsCollected, movesLeft, isProcessing, level, gameResult, isGridReady, isAutoShuffling]);
+  }, [score, potionsCollected, movesLeft, isProcessing, level, gameResult, isGridReady, isAutoShuffling, star2Score, star3Score]);
 
 
   const handleTileClick = async (r: number, c: number) => {
@@ -683,8 +701,15 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       );
   };
 
-  const scorePercentage = Math.min(100, (score / level.targetScore) * 100);
-  const isTargetReached = score >= level.targetScore;
+  // Progress Bar Calculations
+  // We want a bar that goes from 0 to Star 3 Score.
+  // Markers are placed at Star 1, Star 2, Star 3 positions.
+  const barMax = star3Score;
+  const barFill = Math.min(100, (score / barMax) * 100);
+  
+  const star1Pos = (star1Score / barMax) * 100;
+  const star2Pos = (star2Score / barMax) * 100;
+  const star3Pos = 100;
 
   return (
     <div className={`flex flex-col h-full w-full ${level.background} text-white relative overflow-hidden`}>
@@ -720,39 +745,51 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       </div>
 
       {/* --- PROGRESS BAR SECTION --- */}
-      <div className="px-6 py-3 z-20 flex flex-col gap-2 relative w-full max-w-md mx-auto">
+      <div className="px-6 py-3 z-20 flex flex-col gap-2 relative w-full max-w-md mx-auto mt-2">
          {/* Bar Container */}
-        <div className="relative h-7 bg-slate-900/60 rounded-full border-2 border-slate-500/50 overflow-visible shadow-inner">
-            {/* Background for empty part */}
-            <div className="absolute inset-0 rounded-full overflow-hidden bg-slate-800">
-                {/* The Fill */}
-                <div
-                    className={`h-full transition-all duration-700 ease-out relative flex items-center justify-end pr-2 overflow-hidden ${isTargetReached ? 'bg-gradient-to-r from-yellow-400 to-amber-500 shadow-[0_0_15px_rgba(251,191,36,0.5)]' : 'bg-gradient-to-r from-blue-400 to-indigo-500'}`}
-                    style={{ width: `${scorePercentage}%` }}
-                >
-                    {/* Shimmer Effect */}
-                    <div className="absolute top-0 bottom-0 -right-full w-1/2 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 animate-[wiggle_2s_infinite]"></div>
+        <div className="relative h-6 bg-slate-900/80 rounded-full border-2 border-slate-600 shadow-inner">
+            
+            {/* The Fill */}
+            <div
+                className="h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r from-green-400 to-emerald-600 shadow-[0_0_10px_rgba(74,222,128,0.5)] relative overflow-hidden"
+                style={{ width: `${barFill}%` }}
+            >
+                <div className="absolute top-0 bottom-0 -right-full w-full bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 animate-[wiggle_2s_infinite]"></div>
+            </div>
+
+            {/* Star Markers */}
+            {/* Star 1 */}
+            <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300" style={{ left: `${star1Pos}%`, transform: 'translate(-50%, -50%)' }}>
+                <div className={`p-1 rounded-full border-2 transition-all ${score >= star1Score ? 'bg-amber-400 border-white scale-125 shadow-lg' : 'bg-slate-800 border-slate-500'}`}>
+                    <Star size={12} className={score >= star1Score ? 'text-white fill-white' : 'text-slate-500'} />
                 </div>
             </div>
 
-            {/* Target Marker Text (Centered) */}
-             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                 <span className="text-xs font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,1)] uppercase tracking-wider font-mono">
-                     {isTargetReached ? 'Objetivo Alcançado!' : `${score} / ${level.targetScore}`}
-                 </span>
-             </div>
+            {/* Star 2 */}
+            <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300" style={{ left: `${star2Pos}%`, transform: 'translate(-50%, -50%)' }}>
+                <div className={`p-1 rounded-full border-2 transition-all ${score >= star2Score ? 'bg-amber-400 border-white scale-125 shadow-lg' : 'bg-slate-800 border-slate-500'}`}>
+                    <Star size={14} className={score >= star2Score ? 'text-white fill-white' : 'text-slate-500'} />
+                </div>
+            </div>
 
-             {/* Star Icon at the end (Visual Goal) */}
-             <div className="absolute -right-2 -top-1.5 z-10">
-                 <div className={`p-1.5 rounded-full border-2 shadow-sm transition-all duration-500 ${isTargetReached ? 'bg-amber-500 border-yellow-200 scale-110' : 'bg-slate-700 border-slate-500'}`}>
-                    <Star size={16} className={`${isTargetReached ? 'text-white fill-white animate-spin-slow' : 'text-slate-400'}`} />
-                 </div>
+             {/* Star 3 (End) */}
+            <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300" style={{ right: '-10px', transform: 'translate(0, -50%)' }}>
+                <div className={`p-1.5 rounded-full border-2 transition-all ${score >= star3Score ? 'bg-amber-400 border-white scale-125 shadow-lg' : 'bg-slate-800 border-slate-500'}`}>
+                    <Star size={16} className={score >= star3Score ? 'text-white fill-white animate-spin-slow' : 'text-slate-500'} />
+                </div>
+            </div>
+
+             {/* Score Text */}
+             <div className="absolute -bottom-6 w-full text-center">
+                 <span className="text-xs font-bold text-white drop-shadow-md font-mono bg-black/30 px-2 rounded-md">
+                     {score} pts
+                 </span>
              </div>
         </div>
 
         {/* Level Specific Objective (Potions) underneath */}
         {level.objective === 'COLLECT_POTIONS' && (
-             <div className="flex justify-center mt-1 animate-[float-up_0.5s_ease-out]">
+             <div className="flex justify-center mt-4 animate-[float-up_0.5s_ease-out]">
                  {renderObjective()}
              </div>
         )}

@@ -110,8 +110,10 @@ const generateLevels = (count: number): LevelConfig[] => {
 
     // --- Objective Logic ---
     let objective: LevelObjective = 'SCORE';
-    // BALANCE: Score target grows slower now (id * 40 instead of 100)
-    let objectiveTarget = 800 + (id * 40); 
+    // REBALANCE: Aumentamos drasticamente a meta de pontos.
+    // Antes era 800 base, o que era atingido em 3 jogadas de combos.
+    // Agora base é 3000, forçando o jogador a jogar mais tempo.
+    let objectiveTarget = 3000 + (id * 150); 
     
     // Every 5th level is a collection level
     if (id % 5 === 0 && id > 3) {
@@ -124,10 +126,10 @@ const generateLevels = (count: number): LevelConfig[] => {
         }
     }
 
-    // BALANCE: Increased base moves
-    let moves = 25; // Was 20
-    if (difficulty === 'Médio') moves = 30; // Was 25
-    if (difficulty === 'Difícil') moves = 35; // Was 30
+    // BALANCE: Increased base moves slightly to compensate for higher score target
+    let moves = 20;
+    if (difficulty === 'Médio') moves = 25;
+    if (difficulty === 'Difícil') moves = 30;
     
     if (layoutKey === 'SPIRAL' || layoutKey === 'DONUT' || layoutKey === 'CASTLE') moves += 5;
 
@@ -135,7 +137,7 @@ const generateLevels = (count: number): LevelConfig[] => {
       id,
       name: `${biome.name} ${id}`,
       moves: moves,
-      targetScore: Math.floor(objectiveTarget),
+      targetScore: objective === 'SCORE' ? Math.floor(objectiveTarget) : Math.floor(objectiveTarget * 1000), // Potion levels also need a score baseline for stars
       background: biome.bg,
       difficulty,
       layout,
