@@ -95,6 +95,66 @@ export const shuffleBoard = (grid: Grid): Grid => {
   return newGrid;
 };
 
+// --- CHECK FOR POSSIBLE MOVES ---
+export const hasPossibleMoves = (grid: Grid): boolean => {
+    // Clone grid minimalistically to simulate swaps
+    // We only need types and obstacles
+    const tempGrid = grid.map(row => row.map(t => ({...t})));
+
+    const check = (r: number, c: number) => {
+        // Can we swap right?
+        if (isValid(r, c+1)) {
+            const t1 = tempGrid[r][c];
+            const t2 = tempGrid[r][c+1];
+            if (!t1.isEmpty && !t2.isEmpty && t1.obstacle !== ObstacleType.STONE && t2.obstacle !== ObstacleType.STONE && t1.obstacle !== ObstacleType.CHAINS && t2.obstacle !== ObstacleType.CHAINS) {
+                // Swap types
+                const type1 = t1.type;
+                const type2 = t2.type;
+                t1.type = type2;
+                t2.type = type1;
+                
+                // Check match
+                const { matches } = findMatches(tempGrid);
+                
+                // Swap back
+                t1.type = type1;
+                t2.type = type2;
+
+                if (matches.length > 0) return true;
+            }
+        }
+        // Can we swap down?
+        if (isValid(r+1, c)) {
+            const t1 = tempGrid[r][c];
+            const t2 = tempGrid[r+1][c];
+             if (!t1.isEmpty && !t2.isEmpty && t1.obstacle !== ObstacleType.STONE && t2.obstacle !== ObstacleType.STONE && t1.obstacle !== ObstacleType.CHAINS && t2.obstacle !== ObstacleType.CHAINS) {
+                // Swap types
+                const type1 = t1.type;
+                const type2 = t2.type;
+                t1.type = type2;
+                t2.type = type1;
+                
+                // Check match
+                const { matches } = findMatches(tempGrid);
+                
+                // Swap back
+                t1.type = type1;
+                t2.type = type2;
+
+                if (matches.length > 0) return true;
+            }
+        }
+        return false;
+    };
+
+    for(let r=0; r<BOARD_SIZE; r++) {
+        for(let c=0; c<BOARD_SIZE; c++) {
+            if (check(r,c)) return true;
+        }
+    }
+    return false;
+};
+
 // --- OBSTACLE DAMAGE LOGIC ---
 const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: number } => {
     const newGrid = grid.map(row => row.map(t => ({...t})));
@@ -110,14 +170,14 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         if (tile.obstacle === ObstacleType.STONE && tile.status !== TileStatus.MATCHED) {
             tile.obstacleHealth -= 1;
             damagedIds.add(tile.id);
-            extraScore += 20; // Ajustado: De 50 para 20 (Recompensa justa, não exagerada)
+            extraScore += 20; 
             tile.status = TileStatus.NEW; 
 
             if (tile.obstacleHealth <= 0) {
                 tile.obstacle = ObstacleType.NONE;
                 tile.type = getRandomRune(); 
                 tile.status = TileStatus.NEW;
-                extraScore += 50; // Ajustado: De 100 para 50
+                extraScore += 50; 
             }
         }
     };
@@ -131,7 +191,7 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         const gridTile = newGrid[t.row][t.col];
         if (gridTile.obstacle === ObstacleType.ICE || gridTile.obstacle === ObstacleType.CHAINS) {
              gridTile.obstacle = ObstacleType.NONE;
-             extraScore += 30; // Ajustado: De 60 para 30
+             extraScore += 30; 
         }
     });
 
@@ -156,10 +216,10 @@ const collectExplosions = (
     visitedIds.add(tile.id);
     
     tilesToDestroy.push(tile);
-    totalScore += 10; // Ajustado: De 20 para 10 (Pontuação base equilibrada)
+    totalScore += 10; 
 
     if (tile.powerUp !== PowerUp.NONE) {
-      totalScore += 30; // Ajustado: De 50 para 30
+      totalScore += 30; 
       let targets: {r: number, c: number}[] = [];
 
       if (tile.powerUp === PowerUp.HORIZONTAL) {
@@ -207,7 +267,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
     if (newGrid[bomb.row][bomb.col].status !== TileStatus.MATCHED) {
         newGrid[bomb.row][bomb.col].status = TileStatus.MATCHED;
         newGrid[bomb.row][bomb.col].type = RuneType.WILD;
-        score += 100; // Ajustado: De 200 para 100
+        score += 100; 
     }
 
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -216,7 +276,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
             if (!tile.isEmpty && tile.obstacle === ObstacleType.NONE && tile.type === targetType && tile.status !== TileStatus.MATCHED) {
                 newGrid[r][c].status = TileStatus.MATCHED;
                 newGrid[r][c].type = RuneType.WILD;
-                score += 15; // Ajustado: De 30 para 15
+                score += 15; 
                 count++;
             }
         }
@@ -406,27 +466,18 @@ export const findMatches = (grid: Grid): { matches: Tile[], score: number, newPo
       // Rule 4: Match 4 (Linear) -> Directional
       else if (count === 4 && isLine) {
           // Determine orientation
-          powerType = (width > height) ? PowerUp.VERTICAL : PowerUp.HORIZONTAL; // Note: Horizontal match creates VERTICAL blaster usually (mechanic choice)
-          // Let's stick to intuitive: Horizontal match -> Horizontal Line Clearer
+          // Horizontal match creates VERTICAL blaster usually (mechanic choice)
           powerType = (width > height) ? PowerUp.HORIZONTAL : PowerUp.VERTICAL; 
       }
 
       if (powerType !== PowerUp.NONE && intersectionTile) {
           newPowerUps.push({ r: intersectionTile.row, c: intersectionTile.col, type: powerType });
-          // Ensure the powerup tile isn't cleared by the explosion logic immediately
-          // Actually, 'matches' list determines what gets removed. We should NOT remove the tile becoming a powerup yet?
-          // Standard logic: Clear all, spawn new. But to prevent gaps, usually one tile transforms.
-          // handleMatches will take care of converting the tile type and keeping it from disappearing if we simply
-          // allow standard logic to run. 'matches' are what disappear.
-          // In 'handleMatches': matches turn into WILD (visual clear) then removed? No, handleMatches sets status MATCHED.
-          // The PowerUp needs to replace one of them.
       }
   }
 
   const { tiles: finalTilesToClear, score } = collectExplosions(grid, allInitialMatches);
   
-  // Filter out tiles that will become powerups so they don't get destroyed by the explosion calculation
-  // (Though handleMatches logic handles the actual creation)
+  // Filter out tiles that will become powerups so they don't get destroyed by the explosion logic immediately
   const powerUpLocs = new Set(newPowerUps.map(p => `${p.r},${p.c}`));
   const cleanTilesToClear = finalTilesToClear.filter(t => !powerUpLocs.has(`${t.row},${t.col}`));
 

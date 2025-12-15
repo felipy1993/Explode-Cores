@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Grid, LevelConfig, BOARD_SIZE, ANIMATION_DELAY, PowerUp, TileStatus, LevelResult, RuneType, ObstacleType, TutorialType } from '../types';
-import { createBoard, findMatches, handleMatches, applyGravity, resetStatus, triggerColorBomb, shuffleBoard } from '../utils/gameLogic';
+import { createBoard, findMatches, handleMatches, applyGravity, resetStatus, triggerColorBomb, shuffleBoard, hasPossibleMoves } from '../utils/gameLogic';
 import Rune from './Rune';
 import TutorialModal from './TutorialModal';
 import LevelCompleteModal from './LevelCompleteModal';
@@ -45,7 +45,8 @@ interface VisualEffect {
     c: number;
 }
 
-const POINTS_PER_MOVE = 50; 
+// SCORE BALANCE: Increased from 50 to 100 to make scoring easier
+const POINTS_PER_MOVE = 150; 
 
 const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, seenTutorials, onTutorialSeen, inventoryBoosters, onConsumeBooster, onOpenSettings }) => {
   const [grid, setGrid] = useState<Grid>([]);
@@ -79,6 +80,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
   const [hintTile, setHintTile] = useState<{r: number, c: number} | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -145,11 +147,44 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
     hintTimerRef.current = setTimeout(() => {
       if (!isMountedRef.current) return;
+      // Simple random hint (can be improved to find real moves)
       const r = Math.floor(Math.random() * BOARD_SIZE);
       const c = Math.floor(Math.random() * BOARD_SIZE);
       setHintTile({r, c});
     }, 5000); 
   }, [grid, isProcessing, gameResult, activeTutorial]);
+
+  // --- AUTO SHUFFLE CHECK ---
+  useEffect(() => {
+      if (!isGridReady || isProcessing || gameResult || activeTutorial || isAutoShuffling || isEndingRef.current) return;
+
+      const checkMoves = async () => {
+          const hasMoves = hasPossibleMoves(grid);
+          if (!hasMoves) {
+              setIsAutoShuffling(true);
+              setComboMessage({ text: "Sem Movimentos!", scale: 1.2 });
+              
+              await new Promise(r => setTimeout(r, 1500));
+              if (!isMountedRef.current) return;
+
+              audioManager.playSfx('special');
+              const newGrid = shuffleBoard(grid);
+              setGrid(newGrid);
+              setComboMessage({ text: "Embaralhando...", scale: 1.2 });
+              
+              await new Promise(r => setTimeout(r, 800));
+              if (!isMountedRef.current) return;
+
+              setComboMessage(null);
+              setIsAutoShuffling(false);
+          }
+      };
+      
+      // Delay check slightly to let animations settle
+      const t = setTimeout(checkMoves, 500);
+      return () => clearTimeout(t);
+  }, [grid, isGridReady, isProcessing, gameResult, activeTutorial, isAutoShuffling]);
+
 
   useEffect(() => {
     if (isGridReady) resetHintTimer();
@@ -280,7 +315,8 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       if (matches.length > 0) {
         
         // --- VISUAL FEEDBACK LOGIC ---
-        const actualMultiplier = Math.min(comboMultiplier, 5);
+        // Increase combo multiplier logic (more points for chains)
+        const actualMultiplier = comboMultiplier + (comboMultiplier > 1 ? 1 : 0);
         
         // Effects for each match
         matches.forEach(m => {
@@ -296,7 +332,9 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
         // Determine Center Point for floating text
         const centerTile = matches[Math.floor(matches.length / 2)];
-        addFloatingText(centerTile.row, centerTile.col, matchScore * actualMultiplier, comboMultiplier);
+        // Score Calculation: Base * MatchScore * Combo
+        const scoreGain = Math.floor(matchScore * 2 * actualMultiplier);
+        addFloatingText(centerTile.row, centerTile.col, scoreGain, comboMultiplier);
         
         // Haptic/Shake and Sounds based on PowerUp Creation
         const createdNova = newPowerUps.some(p => p.type === PowerUp.NOVA);
@@ -329,7 +367,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         }
 
         // --- SCORE LOGIC ---
-        setScore(prev => prev + (matchScore * actualMultiplier));
+        setScore(prev => prev + scoreGain);
         triggerScorePulse();
 
         const { grid: afterMatchGrid, scoreBonus } = handleMatches(activeGrid, matches, newPowerUps);
@@ -378,7 +416,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   // --- WIN/LOSE ---
   useEffect(() => {
     // FIX: Wait for processing (combos) to finish before checking win/lose
-    if (gameResult || !isGridReady || isEndingRef.current || isProcessing) return;
+    if (gameResult || !isGridReady || isEndingRef.current || isProcessing || isAutoShuffling) return;
 
     let hasWon = false;
     if (level.objective === 'SCORE') {
@@ -421,11 +459,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
              }
         }, 500);
     }
-  }, [score, potionsCollected, movesLeft, isProcessing, level, gameResult, isGridReady]);
+  }, [score, potionsCollected, movesLeft, isProcessing, level, gameResult, isGridReady, isAutoShuffling]);
 
 
   const handleTileClick = async (r: number, c: number) => {
-    if (isProcessing || gameResult || !isGridReady || isEndingRef.current) return;
+    if (isProcessing || gameResult || !isGridReady || isEndingRef.current || isAutoShuffling) return;
     setHintTile(null);
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
 

@@ -15,37 +15,37 @@ import { LevelConfig, PlayerInventory, ShopItem, LevelResult, LevelObjective, Tu
 import { audioManager } from './utils/audioManager';
 
 // --- LAYOUT TEMPLATES (ASCII MAPS) ---
-// Adicionados novos formatos para garantir variedade
+// CORREÇÃO: Layouts agora garantem largura mínima de 2-3 blocos para permitir matches
 const TEMPLATES: Record<string, string[]> = {
     FULL: [
         "########", "########", "########", "########", "########", "########", "########", "########"
     ],
     CROSS: [
-        "..####..", "..####..", "########", "########", "########", "########", "..####..", "..####.."
+        "###..###", "###..###", "########", "########", "########", "########", "###..###", "###..###"
     ],
     DONUT: [
         "########", "########", "##....##", "##....##", "##....##", "##....##", "########", "########"
     ],
     HOURGLASS: [
-        "########", ".######.", "..####..", "...##...", "...##...", "..####..", ".######.", "########"
+        "########", "#######.", ".#####..", "..###...", "...###..", "..#####.", ".#######", "########"
     ],
     DIVIDED: [
         "###..###", "###..###", "###..###", "########", "########", "###..###", "###..###", "###..###"
     ],
     CASTLE: [
-        "#.#..#.#", "########", "########", "########", "########", "########", "########", "########"
+        "##....##", "########", "########", "########", "########", "########", "########", "##....##"
     ],
     DIAMOND: [
-        "###..###", "##....##", "#......#", "#......#", "#......#", "#......#", "##....##", "###..###"
+        "##....##", "###..###", "########", "########", "########", "########", "###..###", "##....##"
     ],
     CORNERS: [
         "..####..", ".######.", "########", "########", "########", "########", ".######.", "..####.."
     ],
     LANES: [
-        "#.#.#.#.", "#.#.#.#.", "#.#.#.#.", "#.#.#.#.", "#.#.#.#.", "#.#.#.#.", "#.#.#.#.", "#.#.#.#."
+        "###..###", "###..###", "###..###", "########", "########", "###..###", "###..###", "###..###"
     ],
     SPIRAL: [
-        "########", ".......#", ".#####.#", ".#...#.#", ".#.#.#.#", ".#...#.#", ".#####.#", "........"
+        "########", "######.#", "#.####.#", "#.#..#.#", "#.####.#", "#......#", "########", "########"
     ]
 };
 
@@ -66,19 +66,15 @@ const generateLevels = (count: number): LevelConfig[] => {
     
     // Difficulty Calculation
     let difficulty: 'Fácil' | 'Médio' | 'Difícil' = 'Fácil';
-    if (id > 10) difficulty = 'Médio';
-    if (id > 30) difficulty = 'Difícil';
+    if (id > 15) difficulty = 'Médio';
+    if (id > 40) difficulty = 'Difícil';
     
     // --- Layout Selection Logic ---
-    // Instead of fixed ranges, we cycle through templates.
     let layoutKey = 'FULL';
     
     if (id <= 3) {
-        // First 3 levels are always FULL for tutorial/ease
         layoutKey = 'FULL';
     } else {
-        // Cycle through all templates. 
-        // We add an offset (Math.floor(id / 10)) so the cycle shifts slightly every 10 levels
         const index = (id + Math.floor(id / 10)) % templateKeys.length;
         layoutKey = templateKeys[index];
     }
@@ -86,56 +82,53 @@ const generateLevels = (count: number): LevelConfig[] => {
     let layout = [...TEMPLATES[layoutKey]];
 
     // --- Obstacle Injection Logic ---
-    // Obstacles appear based on level number patterns to ensure variety
+    // Reduced density slightly to prevent "impossible" jams
     
-    // 1. Stones (Blockers) - Every 3 levels starting at 5
+    // 1. Stones
     if (id > 5 && id % 3 === 0) {
-        const stoneDensity = Math.min(0.3, 0.1 + (id * 0.002)); // Density increases slowly
+        const stoneDensity = Math.min(0.25, 0.1 + (id * 0.0015)); 
         layout = layout.map(row => {
             return row.replace(/#/g, (m) => Math.random() < stoneDensity ? 'S' : '#');
         });
     }
 
-    // 2. Ice (Overlay) - Every 4 levels starting at 15
+    // 2. Ice
     if (id > 15 && id % 4 === 0) {
-        const iceDensity = Math.min(0.4, 0.15 + (id * 0.002));
+        const iceDensity = Math.min(0.35, 0.15 + (id * 0.0015));
         layout = layout.map(row => {
-             // Don't put ice on stones ('S')
-             return row.replace(/#/g, (m) => (Math.random() < iceDensity) ? 'I' : m);
+             return row.replace(/#/g, (m) => (Math.random() < iceDensity && m !== 'S') ? 'I' : m);
         });
     }
 
-    // 3. Chains (Lock) - Every 7 levels starting at 25 (Rare challenge)
+    // 3. Chains
     if (id > 25 && id % 7 === 0) {
-         const chainDensity = 0.2;
+         const chainDensity = 0.15; // Kept low
          layout = layout.map(row => {
-             return row.replace(/#/g, (m) => (Math.random() < chainDensity) ? 'C' : m);
+             return row.replace(/#/g, (m) => (Math.random() < chainDensity && m !== 'S' && m !== 'I') ? 'C' : m);
         });
     }
 
     // --- Objective Logic ---
     let objective: LevelObjective = 'SCORE';
-    let objectiveTarget = 1000 + (id * 100); // Scaling score
+    // BALANCE: Score target grows slower now (id * 40 instead of 100)
+    let objectiveTarget = 800 + (id * 40); 
     
-    // Every 4th level is a potion collection level
-    if (id % 4 === 0 && id > 3) {
+    // Every 5th level is a collection level
+    if (id % 5 === 0 && id > 3) {
         objective = 'COLLECT_POTIONS';
-        // 2 potions early on, up to 5 later
-        const potionsCount = Math.min(5, 2 + Math.floor(id / 20));
+        const potionsCount = Math.min(6, 2 + Math.floor(id / 15));
         objectiveTarget = potionsCount;
     } else {
-        // Adjust score target based on difficulty of layout
         if (layoutKey === 'LANES' || layoutKey === 'SPIRAL') {
-            objectiveTarget = Math.floor(objectiveTarget * 0.8); // Harder layouts need lower targets
+            objectiveTarget = Math.floor(objectiveTarget * 0.7); 
         }
     }
 
-    // Moves balancing
-    let moves = 20;
-    if (difficulty === 'Médio') moves = 25;
-    if (difficulty === 'Difícil') moves = 30;
+    // BALANCE: Increased base moves
+    let moves = 25; // Was 20
+    if (difficulty === 'Médio') moves = 30; // Was 25
+    if (difficulty === 'Difícil') moves = 35; // Was 30
     
-    // Extra moves for restrictive layouts
     if (layoutKey === 'SPIRAL' || layoutKey === 'DONUT' || layoutKey === 'CASTLE') moves += 5;
 
     return {
