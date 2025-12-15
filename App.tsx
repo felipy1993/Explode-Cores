@@ -146,6 +146,23 @@ export default function App() {
 
   const [inventory, setInventory] = useState<PlayerInventory>(DEFAULT_INVENTORY);
 
+  // --- AUDIO INITIALIZATION LISTENER ---
+  useEffect(() => {
+    const initAudio = () => {
+      audioManager.init();
+      window.removeEventListener('click', initAudio);
+      window.removeEventListener('touchstart', initAudio);
+    };
+
+    window.addEventListener('click', initAudio);
+    window.addEventListener('touchstart', initAudio);
+
+    return () => {
+      window.removeEventListener('click', initAudio);
+      window.removeEventListener('touchstart', initAudio);
+    };
+  }, []);
+
   // --- FIREBASE AUTH LISTENER ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
