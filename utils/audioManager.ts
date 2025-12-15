@@ -7,11 +7,10 @@ class AudioManager {
   private isInitialized: boolean = false;
 
   constructor() {
-    // Música de fundo (Mantemos link externo para música, mas usamos um mais estável ou placeholder)
-    // Se falhar, pelo menos os efeitos sonoros funcionarão via sintetizador.
+    // Música de fundo (Placeholder suave)
     this.music = new Audio('https://cdn.pixabay.com/audio/2022/10/24/audio_34b757303d.mp3'); 
     this.music.loop = true;
-    this.music.volume = 0.3;
+    this.music.volume = 0.2; // Volume mais baixo para não competir com SFX
 
     // Load preferences
     const savedMusic = localStorage.getItem('musicMuted');
@@ -21,16 +20,13 @@ class AudioManager {
     if (savedSfx) this.sfxMuted = JSON.parse(savedSfx);
   }
 
-  // Inicializa o contexto de áudio no primeiro clique do usuário
   init() {
     if (this.isInitialized) return;
     
     try {
-      // Cross-browser support
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       this.ctx = new AudioContextClass();
       
-      // Resume context if suspended (browser autoplay policy)
       if (this.ctx.state === 'suspended') {
         this.ctx.resume();
       }
@@ -69,124 +65,98 @@ class AudioManager {
     return this.sfxMuted;
   }
 
-  // --- SINTETIZADOR DE EFEITOS SONOROS (WEB AUDIO API) ---
-  // Gera sons matematicamente para não depender de arquivos externos que podem quebrar.
+  // --- SINTETIZADOR SUAVE (SOFT SYNTH) ---
   
   playSfx(key: string) {
     if (this.sfxMuted || !this.ctx) return;
-    
-    // Resume context if needed
     if (this.ctx.state === 'suspended') this.ctx.resume();
 
     const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
     
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    // Função auxiliar para criar osciladores rápidos
+    const createOsc = (type: OscillatorType, freqStart: number, freqEnd: number, duration: number, volume: number, delay: number = 0) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        osc.type = type;
+        
+        // Frequency envelope
+        osc.frequency.setValueAtTime(freqStart, t + delay);
+        if (freqEnd !== freqStart) {
+            osc.frequency.exponentialRampToValueAtTime(freqEnd, t + delay + duration);
+        }
+
+        // Volume envelope (Soft Attack/Release)
+        gain.gain.setValueAtTime(0, t + delay);
+        gain.gain.linearRampToValueAtTime(volume, t + delay + (duration * 0.1)); // 10% attack
+        gain.gain.exponentialRampToValueAtTime(0.001, t + delay + duration); // Smooth release
+        
+        osc.start(t + delay);
+        osc.stop(t + delay + duration);
+    };
 
     switch (key) {
-      case 'select': // Short blip
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, t);
-        osc.frequency.exponentialRampToValueAtTime(400, t + 0.1);
-        gain.gain.setValueAtTime(0.1, t);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
-        osc.start(t);
-        osc.stop(t + 0.1);
+      case 'select': 
+        // "Blip" muito curto e suave
+        createOsc('sine', 600, 600, 0.05, 0.05);
         break;
 
-      case 'swap': // Whoosh slide
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(300, t);
-        osc.frequency.linearRampToValueAtTime(600, t + 0.2);
-        gain.gain.setValueAtTime(0.1, t);
-        gain.gain.linearRampToValueAtTime(0.01, t + 0.2);
-        osc.start(t);
-        osc.stop(t + 0.2);
+      case 'swap': 
+        // "Whoosh" sutil de baixa frequência
+        createOsc('sine', 250, 400, 0.15, 0.03);
         break;
 
-      case 'match': // High ping/bell
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(500, t);
-        osc.frequency.exponentialRampToValueAtTime(1000, t + 0.1);
-        gain.gain.setValueAtTime(0.2, t);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-        osc.start(t);
-        osc.stop(t + 0.3);
+      case 'match': 
+        // "Pop" / "Bolha" agradável
+        // VARIAÇÃO ALEATÓRIA: Muda ligeiramente o tom a cada match para não enjoar
+        const variance = (Math.random() * 100) - 50; // +/- 50Hz
+        const baseFreq = 350 + variance;
         
-        // Harmonic
-        const osc2 = this.ctx.createOscillator();
-        const gain2 = this.ctx.createGain();
-        osc2.connect(gain2);
-        gain2.connect(this.ctx.destination);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1000, t);
-        gain2.gain.setValueAtTime(0.1, t);
-        gain2.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-        osc2.start(t);
-        osc2.stop(t + 0.3);
+        // Som principal (corpo)
+        createOsc('sine', baseFreq, baseFreq * 1.5, 0.12, 0.08);
+        // Harmônico sutil (brilho)
+        createOsc('sine', baseFreq * 2, baseFreq * 2.5, 0.1, 0.02);
         break;
 
-      case 'combo': // Ascending Arpeggio
-        this.playTone(440, 'sine', 0.1, t);
-        this.playTone(554, 'sine', 0.1, t + 0.1); // C#
-        this.playTone(659, 'sine', 0.2, t + 0.2); // E
+      case 'combo': 
+        // Acorde Mágico (Tríade Maior Cintilante)
+        // Toca 3 notas rápidas em sucessão (arpejo muito rápido)
+        const root = 523.25; // C5
+        createOsc('sine', root, root, 0.4, 0.05, 0);          // Root
+        createOsc('sine', root * 1.25, root * 1.25, 0.4, 0.05, 0.05); // Major 3rd (E)
+        createOsc('sine', root * 1.5, root * 1.5, 0.5, 0.05, 0.1);   // Perfect 5th (G)
+        // Um brilho extra agudo
+        createOsc('triangle', root * 2, root * 2, 0.2, 0.01, 0.15); 
         break;
 
-      case 'special': // Laser/Zap
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(800, t);
-        osc.frequency.exponentialRampToValueAtTime(100, t + 0.4);
-        gain.gain.setValueAtTime(0.1, t);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
-        osc.start(t);
-        osc.stop(t + 0.4);
+      case 'special': 
+        // Som etéreo para poderes
+        createOsc('sine', 200, 800, 0.4, 0.1);
+        createOsc('triangle', 205, 805, 0.4, 0.05);
         break;
 
-      case 'win': // Victory Chord
-        this.playTone(523.25, 'triangle', 0.4, t); // C
-        this.playTone(659.25, 'triangle', 0.4, t + 0.1); // E
-        this.playTone(783.99, 'triangle', 0.6, t + 0.2); // G
-        this.playTone(1046.50, 'sine', 0.8, t + 0.3); // High C
+      case 'win': 
+        // Acorde de Vitória Suave
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+            createOsc('sine', freq, freq, 0.6, 0.05, i * 0.1);
+        });
         break;
 
-      case 'lose': // Sad slide
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(300, t);
-        osc.frequency.linearRampToValueAtTime(100, t + 0.5);
-        gain.gain.setValueAtTime(0.1, t);
-        gain.gain.linearRampToValueAtTime(0.01, t + 0.5);
-        osc.start(t);
-        osc.stop(t + 0.5);
+      case 'lose': 
+        // Tom descendente suave
+        createOsc('sine', 300, 100, 0.5, 0.1);
+        createOsc('triangle', 305, 105, 0.5, 0.05);
         break;
 
-      case 'ui': // Soft click
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(600, t);
-        gain.gain.setValueAtTime(0.05, t);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-        osc.start(t);
-        osc.stop(t + 0.05);
+      case 'ui': 
+        // Clique quase imperceptível
+        createOsc('sine', 800, 800, 0.03, 0.02);
         break;
     }
-  }
-
-  private playTone(freq: number, type: 'sine' | 'square' | 'sawtooth' | 'triangle', duration: number, startTime: number) {
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    
-    osc.type = type;
-    osc.frequency.value = freq;
-    
-    gain.gain.setValueAtTime(0.1, startTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-    
-    osc.start(startTime);
-    osc.stop(startTime + duration);
   }
 
   isMusicMuted() { return this.musicMuted; }
