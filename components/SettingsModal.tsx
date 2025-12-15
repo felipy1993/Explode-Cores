@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { X, Music, Volume2, VolumeX, User, Check, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Music, Volume2, VolumeX, User, Check, LogOut, Maximize, Minimize } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { audioManager } from '../utils/audioManager';
@@ -27,6 +27,20 @@ const AVATAR_OPTIONS = [
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, currentAvatar, onUpdateAvatar }) => {
   const [musicMuted, setMusicMuted] = useState(audioManager.isMusicMuted());
   const [sfxMuted, setSfxMuted] = useState(audioManager.isSfxMuted());
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Monitora o estado real do fullscreen (caso o usuário aperte ESC)
+  useEffect(() => {
+      const handleFullscreenChange = () => {
+          setIsFullscreen(!!document.fullscreenElement);
+      };
+      
+      // Define estado inicial
+      setIsFullscreen(!!document.fullscreenElement);
+
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const handleToggleMusic = () => {
     const newVal = audioManager.toggleMusic();
@@ -36,6 +50,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, currentAvatar, o
   const handleToggleSfx = () => {
     const newVal = audioManager.toggleSfx();
     setSfxMuted(newVal);
+  };
+
+  const handleToggleFullscreen = async () => {
+      try {
+          if (!document.fullscreenElement) {
+              await document.documentElement.requestFullscreen();
+          } else {
+              if (document.exitFullscreen) {
+                await document.exitFullscreen();
+              }
+          }
+      } catch (err) {
+          console.error("Erro ao alterar fullscreen:", err);
+      }
   };
 
   const handleLogout = async () => {
@@ -94,6 +122,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, currentAvatar, o
           </div>
 
           <div className="w-full h-px bg-white/10 my-1"></div>
+
+          {/* Fullscreen Toggle */}
+          <button 
+            onClick={handleToggleFullscreen}
+            className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${isFullscreen ? 'bg-cyan-600 border-cyan-400' : 'bg-slate-700 border-slate-600'}`}
+          >
+            <div className="flex items-center gap-3">
+              {isFullscreen ? <Minimize className="text-white" size={24} /> : <Maximize className="text-white" size={24} />}
+              <span className="font-bold text-white">Tela Cheia</span>
+            </div>
+            <div className="font-mono text-sm font-bold text-white/80">
+              {isFullscreen ? 'ON' : 'OFF'}
+            </div>
+          </button>
 
           {/* Music Toggle */}
           <button 
