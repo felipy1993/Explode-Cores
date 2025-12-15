@@ -34,6 +34,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ defaultInventory }) => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // --- TENTATIVA DE FULLSCREEN AUTOMÁTICO ---
+    try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+            // O navegador exige que isso seja síncrono ou logo após a interação do usuário
+            await document.documentElement.requestFullscreen().catch((err) => {
+                console.log("Fullscreen bloqueado ou cancelado pelo usuário:", err);
+            });
+        }
+    } catch (err) {
+        // Ignora erros de fullscreen para não travar o login
+        console.log("Erro ao tentar fullscreen:", err);
+    }
+    // -------------------------------------------
+
     setLoading(true);
     setError('');
     audioManager.playSfx('ui');
