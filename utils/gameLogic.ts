@@ -110,14 +110,14 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         if (tile.obstacle === ObstacleType.STONE && tile.status !== TileStatus.MATCHED) {
             tile.obstacleHealth -= 1;
             damagedIds.add(tile.id);
-            extraScore += 10; 
+            extraScore += 20; // Ajustado: De 50 para 20 (Recompensa justa, não exagerada)
             tile.status = TileStatus.NEW; 
 
             if (tile.obstacleHealth <= 0) {
                 tile.obstacle = ObstacleType.NONE;
                 tile.type = getRandomRune(); 
                 tile.status = TileStatus.NEW;
-                extraScore += 25; 
+                extraScore += 50; // Ajustado: De 100 para 50
             }
         }
     };
@@ -131,7 +131,7 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         const gridTile = newGrid[t.row][t.col];
         if (gridTile.obstacle === ObstacleType.ICE || gridTile.obstacle === ObstacleType.CHAINS) {
              gridTile.obstacle = ObstacleType.NONE;
-             extraScore += 15; 
+             extraScore += 30; // Ajustado: De 60 para 30
         }
     });
 
@@ -156,10 +156,10 @@ const collectExplosions = (
     visitedIds.add(tile.id);
     
     tilesToDestroy.push(tile);
-    totalScore += 5; 
+    totalScore += 10; // Ajustado: De 20 para 10 (Pontuação base equilibrada)
 
     if (tile.powerUp !== PowerUp.NONE) {
-      totalScore += 20; 
+      totalScore += 30; // Ajustado: De 50 para 30
       let targets: {r: number, c: number}[] = [];
 
       if (tile.powerUp === PowerUp.HORIZONTAL) {
@@ -207,7 +207,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
     if (newGrid[bomb.row][bomb.col].status !== TileStatus.MATCHED) {
         newGrid[bomb.row][bomb.col].status = TileStatus.MATCHED;
         newGrid[bomb.row][bomb.col].type = RuneType.WILD;
-        score += 50; 
+        score += 100; // Ajustado: De 200 para 100
     }
 
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -216,7 +216,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
             if (!tile.isEmpty && tile.obstacle === ObstacleType.NONE && tile.type === targetType && tile.status !== TileStatus.MATCHED) {
                 newGrid[r][c].status = TileStatus.MATCHED;
                 newGrid[r][c].type = RuneType.WILD;
-                score += 20; 
+                score += 15; // Ajustado: De 30 para 15
                 count++;
             }
         }

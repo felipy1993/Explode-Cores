@@ -79,7 +79,9 @@ const generateLevels = (count: number): LevelConfig[] => {
 
     // Objective
     let objective: LevelObjective = 'SCORE';
-    let objectiveTarget = 1000 + (id * 100);
+    // Adjusted Target Formula: Higher base and steeper slope to make levels last longer
+    // 1000 base + 75 per level ensures you need to make consistent matches/combos.
+    let objectiveTarget = 1000 + (id * 75);
     
     if (id % 3 === 0 && id > 5) {
         objective = 'COLLECT_POTIONS';
@@ -89,7 +91,8 @@ const generateLevels = (count: number): LevelConfig[] => {
     return {
       id,
       name: `${biome.name} ${id}`,
-      moves: 20 + (difficulty === 'Difícil' ? 5 : 0),
+      // Balanced Moves: 25 base (+ bonus for hard). Enough to plan, but tight enough to require strategy.
+      moves: 25 + (difficulty === 'Difícil' ? 5 : 0),
       targetScore: Math.floor(objectiveTarget),
       background: biome.bg,
       difficulty,
