@@ -5,7 +5,7 @@ import { createBoard, findMatches, handleMatches, applyGravity, resetStatus, tri
 import Rune from './Rune';
 import TutorialModal from './TutorialModal';
 import LevelCompleteModal from './LevelCompleteModal';
-import { ArrowLeft, RefreshCw, Coins, Zap, Bomb, FlaskConical, Settings, Star } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Coins, Zap, Bomb, FlaskConical, Settings, Star, Target } from 'lucide-react';
 import { audioManager } from '../utils/audioManager';
 
 interface GameProps {
@@ -82,10 +82,10 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
-  // Star Thresholds
+  // Star Thresholds - REBALANCE: Made easier to get stars
   const star1Score = level.targetScore;
-  const star2Score = Math.floor(level.targetScore * 1.5);
-  const star3Score = Math.floor(level.targetScore * 2.5);
+  const star2Score = Math.floor(level.targetScore * 1.2); // Was 1.5
+  const star3Score = Math.floor(level.targetScore * 1.5); // Was 2.5
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -746,6 +746,21 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
       {/* --- PROGRESS BAR SECTION --- */}
       <div className="px-6 py-3 z-20 flex flex-col gap-2 relative w-full max-w-md mx-auto mt-2">
+         
+         {/* --- META DISPLAY (New) --- */}
+         <div className="flex justify-between items-end px-2">
+             <div className="flex items-center gap-2 text-amber-300 drop-shadow-md">
+                 <Target size={18} />
+                 <span className="font-bold uppercase text-sm tracking-wide">Meta:</span>
+                 <span className="font-mono font-black text-lg">{level.targetScore}</span>
+             </div>
+             
+             {/* Dynamic Next Goal Text */}
+             <div className="text-xs font-bold text-slate-300">
+                {score < star1Score ? 'Próxima: ★' : score < star2Score ? 'Próxima: ★★' : score < star3Score ? 'Próxima: ★★★' : 'Máximo!'}
+             </div>
+         </div>
+
          {/* Bar Container */}
         <div className="relative h-6 bg-slate-900/80 rounded-full border-2 border-slate-600 shadow-inner">
             
