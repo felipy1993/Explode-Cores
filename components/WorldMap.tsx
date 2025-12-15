@@ -1,7 +1,7 @@
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { LevelConfig, PlayerInventory, MAX_LIVES } from '../types';
-import { Lock, MapPin, ShoppingBag, Coins, Trophy, Heart, Star, Gift, Settings, TreePine, Cloud, Sparkles, Tent, Mountain } from 'lucide-react';
+import { Lock, MapPin, ShoppingBag, Coins, Trophy, Heart, Star, Gift, Settings, TreePine, Cloud, Sparkles, Tent, Mountain, Maximize, Minimize } from 'lucide-react';
 
 interface WorldMapProps {
   levels: LevelConfig[];
@@ -22,6 +22,7 @@ const CURVE_FREQUENCY = 0.6; // How tight the curves are
 const WorldMap: React.FC<WorldMapProps> = ({ levels, currentLevel, inventory, onSelectLevel, onOpenShop, onOpenLeaderboard, onClaimStarChest, onOpenSettings }) => {
   const currentLevelRef = useRef<HTMLButtonElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Auto-scroll to current level on mount
   useEffect(() => {
@@ -29,6 +30,22 @@ const WorldMap: React.FC<WorldMapProps> = ({ levels, currentLevel, inventory, on
        currentLevelRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [currentLevel]);
+
+  useEffect(() => {
+      const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+      document.addEventListener('fullscreenchange', handleFsChange);
+      // Set initial state
+      setIsFullscreen(!!document.fullscreenElement);
+      return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+      if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(err => console.error(err));
+      } else {
+          document.exitFullscreen().catch(err => console.error(err));
+      }
+  };
 
   // Helper: Rank Colors
   const getRankColor = (rank: string | null) => {
@@ -168,6 +185,9 @@ const WorldMap: React.FC<WorldMapProps> = ({ levels, currentLevel, inventory, on
 
              {/* Right Buttons */}
              <div className="flex gap-2">
+                <button onClick={toggleFullscreen} className="bg-slate-800 p-2.5 rounded-xl border-b-4 border-slate-950 shadow-lg active:border-b-0 active:translate-y-1 transition-all">
+                    {isFullscreen ? <Minimize size={20} className="text-cyan-400" /> : <Maximize size={20} className="text-cyan-400" />}
+                </button>
                 <button onClick={onOpenLeaderboard} className="bg-slate-800 p-2.5 rounded-xl border-b-4 border-slate-950 shadow-lg active:border-b-0 active:translate-y-1 transition-all">
                     <Trophy size={20} className="text-indigo-400" />
                 </button>
