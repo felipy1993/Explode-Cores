@@ -68,6 +68,7 @@ export const shuffleBoard = (grid: Grid): Grid => {
   for(let r=0; r<BOARD_SIZE; r++){
       for(let c=0; c<BOARD_SIZE; c++){
           const t = grid[r][c];
+          // FIX: Tiles with ICE or CHAINS cannot be shuffled as they are stuck
           if(!t.isEmpty && t.obstacle === ObstacleType.NONE && t.status !== TileStatus.MATCHED && t.type !== RuneType.POTION) {
               movableTiles.push({type: t.type, powerUp: t.powerUp});
               slots.push({r, c});
@@ -95,6 +96,43 @@ export const shuffleBoard = (grid: Grid): Grid => {
   return newGrid;
 };
 
+// --- HAMMER ABILITY LOGIC ---
+export const destroyTile = (grid: Grid, r: number, c: number): { grid: Grid, score: number } => {
+    const newGrid = grid.map(row => row.map(t => ({...t})));
+    const tile = newGrid[r][c];
+    let score = 0;
+
+    if (tile.isEmpty) return { grid: newGrid, score: 0 };
+
+    // Impact Logic
+    if (tile.obstacle === ObstacleType.STONE) {
+        tile.obstacleHealth -= 1;
+        tile.status = TileStatus.NEW; // Visual feedback
+        score += 100;
+        
+        if (tile.obstacleHealth <= 0) {
+            tile.obstacle = ObstacleType.NONE;
+            tile.type = getRandomRune();
+            tile.status = TileStatus.MATCHED; // Mark to be cleared by gravity logic
+            tile.type = RuneType.WILD; 
+            score += 200;
+        }
+    } else {
+        // Destroy overlays instantly
+        if (tile.obstacle !== ObstacleType.NONE) {
+            tile.obstacle = ObstacleType.NONE;
+            score += 100;
+        }
+        
+        // Destroy the tile itself
+        tile.status = TileStatus.MATCHED;
+        tile.type = RuneType.WILD;
+        score += 50;
+    }
+
+    return { grid: newGrid, score };
+};
+
 // --- CHECK FOR POSSIBLE MOVES ---
 export const hasPossibleMoves = (grid: Grid): boolean => {
     // Clone grid minimalistically to simulate swaps
@@ -105,7 +143,12 @@ export const hasPossibleMoves = (grid: Grid): boolean => {
         if (isValid(r, c+1)) {
             const t1 = tempGrid[r][c];
             const t2 = tempGrid[r][c+1];
-            if (!t1.isEmpty && !t2.isEmpty && t1.obstacle !== ObstacleType.STONE && t2.obstacle !== ObstacleType.STONE && t1.obstacle !== ObstacleType.CHAINS && t2.obstacle !== ObstacleType.CHAINS) {
+            // FIX: Added ICE to immovable check
+            if (!t1.isEmpty && !t2.isEmpty && 
+                t1.obstacle !== ObstacleType.STONE && t2.obstacle !== ObstacleType.STONE && 
+                t1.obstacle !== ObstacleType.CHAINS && t2.obstacle !== ObstacleType.CHAINS &&
+                t1.obstacle !== ObstacleType.ICE && t2.obstacle !== ObstacleType.ICE) {
+                
                 const type1 = t1.type;
                 const type2 = t2.type;
                 t1.type = type2;
@@ -120,7 +163,12 @@ export const hasPossibleMoves = (grid: Grid): boolean => {
         if (isValid(r+1, c)) {
             const t1 = tempGrid[r][c];
             const t2 = tempGrid[r+1][c];
-             if (!t1.isEmpty && !t2.isEmpty && t1.obstacle !== ObstacleType.STONE && t2.obstacle !== ObstacleType.STONE && t1.obstacle !== ObstacleType.CHAINS && t2.obstacle !== ObstacleType.CHAINS) {
+             // FIX: Added ICE to immovable check
+             if (!t1.isEmpty && !t2.isEmpty && 
+                t1.obstacle !== ObstacleType.STONE && t2.obstacle !== ObstacleType.STONE && 
+                t1.obstacle !== ObstacleType.CHAINS && t2.obstacle !== ObstacleType.CHAINS &&
+                t1.obstacle !== ObstacleType.ICE && t2.obstacle !== ObstacleType.ICE) {
+                
                 const type1 = t1.type;
                 const type2 = t2.type;
                 t1.type = type2;

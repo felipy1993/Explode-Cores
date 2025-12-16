@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Grid, LevelConfig, BOARD_SIZE, ANIMATION_DELAY, PowerUp, TileStatus, LevelResult, RuneType, ObstacleType, TutorialType } from '../types';
-import { createBoard, findMatches, handleMatches, applyGravity, resetStatus, triggerColorBomb, shuffleBoard, hasPossibleMoves } from '../utils/gameLogic';
+import { createBoard, findMatches, handleMatches, applyGravity, resetStatus, triggerColorBomb, shuffleBoard, hasPossibleMoves, destroyTile } from '../utils/gameLogic';
 import Rune from './Rune';
 import TutorialModal from './TutorialModal';
 import LevelCompleteModal from './LevelCompleteModal';
-import { ArrowLeft, RefreshCw, Coins, Zap, Bomb, FlaskConical, Settings, Star, Target, Sparkles, Hourglass } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Coins, Zap, Bomb, FlaskConical, Settings, Star, Target, Sparkles, Hourglass, Hammer } from 'lucide-react';
 import { audioManager } from '../utils/audioManager';
 
 interface GameProps {
@@ -15,8 +15,8 @@ interface GameProps {
   onSpendCoins: (amount: number) => void;
   seenTutorials: TutorialType[];
   onTutorialSeen: (type: TutorialType) => void;
-  inventoryBoosters: { moves_5: number, bomb: number, shuffle: number };
-  onConsumeBooster: (type: 'moves_5' | 'bomb' | 'shuffle') => void;
+  inventoryBoosters: { moves_5: number, bomb: number, shuffle: number, hammer: number };
+  onConsumeBooster: (type: 'moves_5' | 'bomb' | 'shuffle' | 'hammer') => void;
   onOpenSettings: () => void;
 }
 
@@ -80,8 +80,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const [abilityPrices, setAbilityPrices] = useState({
       shuffle: 50,
       bomb: 150,
-      moves: 200
+      moves: 200,
+      hammer: 300
   });
+
+  const [activeAbility, setActiveAbility] = useState<'hammer' | null>(null);
 
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
@@ -495,6 +498,57 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
   const handleTileClick = async (r: number, c: number) => {
     if (isProcessing || gameResult || !isGridReady || isEndingRef.current || isAutoShuffling) return;
+    
+    // --- HAMMER ABILITY LOGIC ---
+    if (activeAbility === 'hammer') {
+        if (!grid[r][c].isEmpty) {
+            
+            // Check inventory or price BEFORE spending
+            const hasStock = inventoryBoosters.hammer > 0;
+            const price = abilityPrices.hammer;
+
+            if (hasStock) {
+                onConsumeBooster('hammer');
+            } else if (currentCoins >= price) {
+                onSpendCoins(price);
+                // Ramp up price for next purchase this session
+                setAbilityPrices(prev => ({ ...prev, hammer: prev.hammer + 50 }));
+            } else {
+                // Should theoretically be blocked by handleUseAbility but double check
+                audioManager.playSfx('lose');
+                setActiveAbility(null);
+                return;
+            }
+
+            setActiveAbility(null);
+            setIsProcessing(true);
+            audioManager.playSfx('special');
+            
+            const { grid: destroyedGrid, score: hitScore } = destroyTile(grid, r, c);
+            setGrid(destroyedGrid);
+            setScore(prev => prev + hitScore);
+            triggerVisualEffect('SHOCKWAVE', r, c);
+            spawnParticles(r, c, '#fbbf24');
+            triggerShake('high');
+
+            await new Promise(r => setTimeout(r, ANIMATION_DELAY));
+            if (!isMountedRef.current) return;
+
+            const currentPotions = destroyedGrid.flat().filter(t => t.type === RuneType.POTION).length;
+            const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotions < 4;
+
+            let { grid: finalGrid } = applyGravity(destroyedGrid, handlePotionCollected, shouldSpawn);
+            setGrid([...finalGrid]);
+            await new Promise(r => setTimeout(r, ANIMATION_DELAY));
+            
+            if (!isMountedRef.current) return;
+            finalGrid = resetStatus(finalGrid);
+            setGrid([...finalGrid]);
+            processBoard(finalGrid);
+        }
+        return;
+    }
+
     setHintTile(null);
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
 
@@ -511,7 +565,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     const t1 = grid[r1][c1];
     const t2 = grid[r][c];
 
-    if (t1.obstacle === ObstacleType.CHAINS || t2.obstacle === ObstacleType.CHAINS || t1.obstacle === ObstacleType.STONE || t2.obstacle === ObstacleType.STONE || t2.isEmpty) {
+    // FIX: Added check for ICE to prevent moving frozen tiles
+    if (t1.obstacle === ObstacleType.CHAINS || t2.obstacle === ObstacleType.CHAINS || 
+        t1.obstacle === ObstacleType.STONE || t2.obstacle === ObstacleType.STONE || 
+        t1.obstacle === ObstacleType.ICE || t2.obstacle === ObstacleType.ICE ||
+        t2.isEmpty) {
          setSelectedTile(null);
          triggerShake();
          return;
@@ -676,8 +734,16 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       }
   };
 
-  const handleUseAbility = async (type: 'shuffle' | 'bomb' | 'moves') => {
+  const handleUseAbility = async (type: 'shuffle' | 'bomb' | 'moves' | 'hammer') => {
       if (isProcessing || gameResult) return;
+
+      // Special handling for Target-based abilities (Hammer)
+      if (type === 'hammer') {
+          if (activeAbility === 'hammer') {
+              setActiveAbility(null);
+              return;
+          }
+      }
 
       const inventoryKey = type === 'moves' ? 'moves_5' : type;
       const hasStock = inventoryBoosters[inventoryKey] > 0;
@@ -689,6 +755,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       }
       
       audioManager.playSfx('special');
+
+      if (type === 'hammer') {
+          // Hammer consumes ONLY when tile is clicked (handled in handleTileClick)
+          // Just set active state here
+          setActiveAbility('hammer');
+          return;
+      }
 
       if (type === 'shuffle') {
           setIsProcessing(true);
@@ -734,22 +807,25 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
   const CELL_SIZE_PCT = 100 / BOARD_SIZE;
 
-  const renderAbilityButton = (type: 'shuffle' | 'bomb' | 'moves', icon: React.ReactNode) => {
+  const renderAbilityButton = (type: 'shuffle' | 'bomb' | 'moves' | 'hammer', icon: React.ReactNode) => {
       const inventoryKey = type === 'moves' ? 'moves_5' : type;
       const count = inventoryBoosters[inventoryKey];
       const price = abilityPrices[type];
+      const isActive = activeAbility === type;
 
       return (
-        <button onClick={() => handleUseAbility(type)} className="flex flex-col items-center gap-1 group active:scale-95 transition-transform">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center border-2 border-slate-500 relative ${count > 0 ? 'bg-indigo-600 border-indigo-400' : 'bg-slate-700'}`}>
+        <button onClick={() => handleUseAbility(type)} className={`flex flex-col items-center gap-1 group active:scale-95 transition-transform ${isActive ? 'scale-110' : ''}`}>
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center border-2 border-slate-500 relative ${count > 0 || isActive ? 'bg-indigo-600 border-indigo-400' : 'bg-slate-700'} ${isActive ? 'ring-4 ring-yellow-400 animate-pulse' : ''}`}>
                 {icon}
-                {count > 0 && (
+                {count > 0 && !isActive && (
                     <div className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border border-white">
                         {count}
                     </div>
                 )}
             </div>
-            {count > 0 ? (
+            {isActive ? (
+                <span className="text-xs font-bold text-yellow-300">USANDO</span>
+            ) : count > 0 ? (
                 <span className="text-xs font-bold text-green-400">USAR</span>
             ) : (
                 <span className="text-xs font-bold bg-black/60 px-2 rounded-full text-white flex items-center gap-1">
@@ -882,6 +958,15 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         {globalCombo > 2 && (
              <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-b from-orange-500/10 via-transparent to-red-500/10 animate-pulse transition-opacity duration-500"></div>
         )}
+        
+        {/* Ability Selection Overlay */}
+        {activeAbility === 'hammer' && (
+            <div className="absolute inset-0 z-40 bg-black/30 flex items-start justify-center pt-20 pointer-events-none">
+                <div className="bg-slate-900/90 px-6 py-3 rounded-full border-2 border-yellow-400 text-yellow-300 font-bold animate-bounce shadow-xl">
+                    Toque em uma peça para destruir!
+                </div>
+            </div>
+        )}
 
         {(globalCombo > 0 || comboMessage) && (
             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none flex flex-col items-center">
@@ -900,7 +985,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
         {isGridReady ? (
             <div 
-                className={`relative bg-slate-950/80 p-3 rounded-3xl border-4 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.6)] transition-all duration-300 ${isShaking ? 'animate-shake' : ''} ${globalCombo > 5 ? 'fever-mode border-amber-500' : 'border-slate-700/50'} ${isProcessing ? 'pointer-events-none cursor-wait' : ''}`}
+                className={`relative bg-slate-950/80 p-3 rounded-3xl border-4 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.6)] transition-all duration-300 ${isShaking ? 'animate-shake' : ''} ${globalCombo > 5 ? 'fever-mode border-amber-500' : 'border-slate-700/50'} ${isProcessing ? 'pointer-events-none cursor-wait' : ''} ${activeAbility ? 'cursor-crosshair ring-4 ring-yellow-400' : ''}`}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerLeave={handlePointerUp}
@@ -970,10 +1055,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             <div className="text-white animate-pulse">Carregando Fase...</div>
         )}
 
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-end gap-6 z-30">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-end gap-4 z-30">
             {renderAbilityButton('shuffle', <RefreshCw size={24} className="text-white"/>)}
             {renderAbilityButton('bomb', <Bomb size={24} className="text-white"/>)}
             {renderAbilityButton('moves', <Zap size={24} className="text-white"/>)}
+            {renderAbilityButton('hammer', <Hammer size={24} className="text-white"/>)}
         </div>
       </div>
     </div>

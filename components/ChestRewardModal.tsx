@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { Package, Coins, Zap, Bomb, RefreshCw, Check } from 'lucide-react';
+import { Package, Coins, Zap, Bomb, RefreshCw, Check, Hammer } from 'lucide-react';
 import { PlayerInventory } from '../types';
 
 interface ChestReward {
   coins: number;
-  booster?: 'moves_5' | 'bomb' | 'shuffle';
+  booster?: 'moves_5' | 'bomb' | 'shuffle' | 'hammer';
 }
 
 interface ChestRewardModalProps {
@@ -27,7 +27,7 @@ const ChestRewardModal: React.FC<ChestRewardModalProps> = ({ onClaim }) => {
       let booster: ChestReward['booster'] | undefined;
       const roll = Math.random();
       if (roll < 0.4) {
-        const types: ('moves_5' | 'bomb' | 'shuffle')[] = ['moves_5', 'bomb', 'shuffle'];
+        const types: ('moves_5' | 'bomb' | 'shuffle' | 'hammer')[] = ['moves_5', 'bomb', 'shuffle', 'hammer'];
         booster = types[Math.floor(Math.random() * types.length)];
       }
 
@@ -53,6 +53,7 @@ const ChestRewardModal: React.FC<ChestRewardModalProps> = ({ onClaim }) => {
       case 'moves_5': return <Zap className="text-yellow-400" size={24} />;
       case 'bomb': return <Bomb className="text-red-400" size={24} />;
       case 'shuffle': return <RefreshCw className="text-blue-400" size={24} />;
+      case 'hammer': return <Hammer className="text-slate-300" size={24} />;
       default: return null;
     }
   };

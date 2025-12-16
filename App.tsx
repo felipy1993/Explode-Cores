@@ -172,7 +172,7 @@ const DEFAULT_INVENTORY: PlayerInventory = {
     loginStreak: 1,
     starChestProgress: 0,
     highScores: {},
-    boosters: { moves_5: 1, bomb: 1, shuffle: 1 },
+    boosters: { moves_5: 1, bomb: 1, shuffle: 1, hammer: 1 },
     skins: ['skin_classic'],
     activeSkin: 'skin_classic',
     themes: ['theme_default'],
@@ -315,7 +315,7 @@ export default function App() {
           if (day === 2) inv.boosters.moves_5 += 1;
           if (day === 4) inv.boosters.shuffle += 1;
           if (day === 6) inv.boosters.bomb += 1;
-          if (day === 7) { inv.coins += 1000; inv.boosters.bomb += 1; }
+          if (day === 7) { inv.coins += 1000; inv.boosters.bomb += 1; inv.boosters.hammer += 1; }
           saveUserData(inv);
           return inv;
       });
@@ -392,7 +392,7 @@ export default function App() {
     setTimeout(finalizeExit, 500);
   };
 
-  const handleClaimChestReward = (reward: { coins: number; booster?: 'moves_5' | 'bomb' | 'shuffle' }) => {
+  const handleClaimChestReward = (reward: { coins: number; booster?: 'moves_5' | 'bomb' | 'shuffle' | 'hammer' }) => {
       audioManager.playSfx('win');
       setInventory(prev => {
           const newInv = { ...prev };
@@ -401,6 +401,7 @@ export default function App() {
               if (reward.booster === 'moves_5') newInv.boosters.moves_5++;
               if (reward.booster === 'bomb') newInv.boosters.bomb++;
               if (reward.booster === 'shuffle') newInv.boosters.shuffle++;
+              if (reward.booster === 'hammer') newInv.boosters.hammer++;
           }
           saveUserData(newInv);
           return newInv;
@@ -424,7 +425,7 @@ export default function App() {
     });
   };
 
-  const handleConsumeBooster = (type: 'moves_5' | 'bomb' | 'shuffle') => {
+  const handleConsumeBooster = (type: 'moves_5' | 'bomb' | 'shuffle' | 'hammer') => {
       setInventory(prev => {
           const newBoosters = { ...prev.boosters };
           if (newBoosters[type] > 0) {
@@ -445,6 +446,7 @@ export default function App() {
                 if (item.id === 'booster_moves') newInv.boosters.moves_5++;
                 if (item.id === 'booster_bomb') newInv.boosters.bomb++;
                 if (item.id === 'booster_shuffle') newInv.boosters.shuffle++;
+                if (item.id === 'booster_hammer') newInv.boosters.hammer++;
             } else if (item.category === 'SKIN') newInv.skins = [...newInv.skins, item.id];
             else if (item.category === 'THEME') newInv.themes = [...newInv.themes, item.id];
             

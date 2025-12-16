@@ -92,6 +92,7 @@ export interface PlayerInventory {
     moves_5: number;
     bomb: number;
     shuffle: number;
+    hammer: number;
   };
   skins: string[]; 
   activeSkin: string;

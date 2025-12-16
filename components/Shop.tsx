@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ShopItem, ItemCategory, PlayerInventory } from '../types';
-import { ArrowLeft, Coins, Zap, Palette, Image as ImageIcon, Check, Lock, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Coins, Zap, Palette, Image as ImageIcon, Check, Lock, ShoppingBag, Hammer } from 'lucide-react';
 
 interface ShopProps {
   inventory: PlayerInventory;
@@ -16,6 +16,7 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'booster_moves', name: '+5 Movimentos', description: 'Adiciona 5 movimentos extras na fase.', price: 150, category: 'BOOSTER', icon: 'moves' },
   { id: 'booster_bomb', name: 'Bomba Mágica', description: 'Começa a fase com uma Bomba Colorida.', price: 250, category: 'BOOSTER', icon: 'bomb' },
   { id: 'booster_shuffle', name: 'Embaralhar', description: 'Mistura o tabuleiro quando não houver jogadas.', price: 100, category: 'BOOSTER', icon: 'shuffle' },
+  { id: 'booster_hammer', name: 'Marreta', description: 'Destrói qualquer peça ou obstáculo.', price: 300, category: 'BOOSTER', icon: 'hammer' },
   
   // Skins
   { id: 'skin_classic', name: 'Runas Clássicas', description: 'O visual original das runas.', price: 0, category: 'SKIN', icon: 'classic' },
@@ -60,6 +61,7 @@ const Shop: React.FC<ShopProps> = ({ inventory, onBuy, onClose, onEquip }) => {
       case 'moves': return <Zap className="text-yellow-400" />;
       case 'bomb': return <div className="w-6 h-6 rounded-full bg-gradient-to-r from-red-500 to-purple-500 animate-pulse" />;
       case 'shuffle': return <RefreshIcon />;
+      case 'hammer': return <Hammer className="text-slate-300" />;
       default: return <ShoppingBag className="text-white" />;
     }
   };
@@ -118,6 +120,7 @@ const Shop: React.FC<ShopProps> = ({ inventory, onBuy, onClose, onEquip }) => {
                     if (item.id === 'booster_moves') quantity = inventory.boosters.moves_5;
                     if (item.id === 'booster_bomb') quantity = inventory.boosters.bomb;
                     if (item.id === 'booster_shuffle') quantity = inventory.boosters.shuffle;
+                    if (item.id === 'booster_hammer') quantity = inventory.boosters.hammer;
                 } else if (item.category === 'SKIN') {
                     isOwned = inventory.skins.includes(item.id);
                     isEquipped = inventory.activeSkin === item.id;
