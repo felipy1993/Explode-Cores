@@ -110,10 +110,12 @@ const generateLevels = (count: number): LevelConfig[] => {
 
     // --- Objective Logic ---
     let objective: LevelObjective = 'SCORE';
-    // REBALANCE: Drastically lower targets.
-    // Antes: 3000 base. Agora: 1000 base.
-    // Com a pontuação por peça 5x maior, isso vai ser super fácil.
-    let objectiveTarget = 1000 + (id * 50); 
+    
+    // SCORE BALANCE: 
+    // Com 10 pts/peça, uma jogada média dá 30-50 pts.
+    // 20 movimentos x 50 pts = 1000 pts.
+    // Meta Base: 1000. Crescimento suave.
+    let objectiveTarget = 1000 + (id * 75); 
     
     // Every 5th level is a collection level
     if (id % 5 === 0 && id > 3) {
@@ -137,7 +139,7 @@ const generateLevels = (count: number): LevelConfig[] => {
       id,
       name: `${biome.name} ${id}`,
       moves: moves,
-      targetScore: objective === 'SCORE' ? Math.floor(objectiveTarget) : Math.floor(objectiveTarget * 1000), // Potion levels also need a score baseline for stars
+      targetScore: objective === 'SCORE' ? Math.floor(objectiveTarget) : Math.floor(objectiveTarget * 1000), // Potion levels also need a score baseline for stars (higher because play goes longer)
       background: biome.bg,
       difficulty,
       layout,

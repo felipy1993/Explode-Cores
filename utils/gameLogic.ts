@@ -170,14 +170,14 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         if (tile.obstacle === ObstacleType.STONE && tile.status !== TileStatus.MATCHED) {
             tile.obstacleHealth -= 1;
             damagedIds.add(tile.id);
-            extraScore += 50; // Increased form 20
+            extraScore += 20; // SCORE BALANCE: Moderate points for hitting obstacles
             tile.status = TileStatus.NEW; 
 
             if (tile.obstacleHealth <= 0) {
                 tile.obstacle = ObstacleType.NONE;
                 tile.type = getRandomRune(); 
                 tile.status = TileStatus.NEW;
-                extraScore += 100; // Increased from 50
+                extraScore += 40; // SCORE BALANCE: Bonus for destroying
             }
         }
     };
@@ -191,7 +191,7 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         const gridTile = newGrid[t.row][t.col];
         if (gridTile.obstacle === ObstacleType.ICE || gridTile.obstacle === ObstacleType.CHAINS) {
              gridTile.obstacle = ObstacleType.NONE;
-             extraScore += 100; // Increased from 30
+             extraScore += 30; // SCORE BALANCE
         }
     });
 
@@ -216,11 +216,12 @@ const collectExplosions = (
     visitedIds.add(tile.id);
     
     tilesToDestroy.push(tile);
-    // REBALANCE: HUGE POINT INCREASE
-    totalScore += 50; // Was 10
+    // SCORE BALANCE: Base score per tile. 
+    // 10 points is standard. A match-3 = 30 pts.
+    totalScore += 10; 
 
     if (tile.powerUp !== PowerUp.NONE) {
-      totalScore += 100; // Was 30
+      totalScore += 20; // Bonus for destroying a powerup itself
       let targets: {r: number, c: number}[] = [];
 
       if (tile.powerUp === PowerUp.HORIZONTAL) {
@@ -268,7 +269,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
     if (newGrid[bomb.row][bomb.col].status !== TileStatus.MATCHED) {
         newGrid[bomb.row][bomb.col].status = TileStatus.MATCHED;
         newGrid[bomb.row][bomb.col].type = RuneType.WILD;
-        score += 500; // Massive bonus for using bomb
+        score += 200; // Big bonus, but not game-breaking
     }
 
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -277,7 +278,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
             if (!tile.isEmpty && tile.obstacle === ObstacleType.NONE && tile.type === targetType && tile.status !== TileStatus.MATCHED) {
                 newGrid[r][c].status = TileStatus.MATCHED;
                 newGrid[r][c].type = RuneType.WILD;
-                score += 50; 
+                score += 10; 
                 count++;
             }
         }

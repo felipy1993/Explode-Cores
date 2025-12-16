@@ -45,8 +45,8 @@ interface VisualEffect {
     c: number;
 }
 
-// SCORE BALANCE: Increased from 150 to 500 to guarantee stars on win
-const POINTS_PER_MOVE = 500; 
+// SCORE BALANCE: Bonus per remaining move. Should be consistent with average move score.
+const POINTS_PER_MOVE = 50; 
 
 const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, seenTutorials, onTutorialSeen, inventoryBoosters, onConsumeBooster, onOpenSettings }) => {
   const [grid, setGrid] = useState<Grid>([]);
@@ -82,10 +82,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
-  // Star Thresholds - REBALANCE: Super easy stars
+  // Star Thresholds - Standard Progression
+  // Star 1: Meet Target
+  // Star 2: 150% Target
+  // Star 3: 200% Target
   const star1Score = level.targetScore;
-  const star2Score = Math.floor(level.targetScore * 1.1); // Was 1.2
-  const star3Score = Math.floor(level.targetScore * 1.3); // Was 1.5
+  const star2Score = Math.floor(level.targetScore * 1.5); 
+  const star3Score = Math.floor(level.targetScore * 2.0);
 
   // --- INITIALIZATION ---
   useEffect(() => {
