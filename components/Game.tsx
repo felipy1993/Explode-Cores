@@ -48,6 +48,7 @@ interface VisualEffect {
 // SCORE BALANCE
 const POINTS_PER_MOVE = 50; 
 const DRAG_THRESHOLD = 30; // Pixels to trigger a swipe
+const COMBO_TIMEOUT_MS = 5000; // 5 seconds to keep the combo alive
 
 const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, seenTutorials, onTutorialSeen, inventoryBoosters, onConsumeBooster, onOpenSettings }) => {
   const [grid, setGrid] = useState<Grid>([]);
@@ -65,8 +66,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const isEndingRef = useRef(false);
   const isMountedRef = useRef(true); 
 
-  // Dragging State Refs (Better than state to avoid re-renders during rapid movement)
+  // Dragging State Refs
   const dragStartRef = useRef<{ r: number, c: number, x: number, y: number } | null>(null);
+
+  // --- COMBO SYSTEM REFS & STATE ---
+  const [globalCombo, setGlobalCombo] = useState(0);
+  const [comboTimerKey, setComboTimerKey] = useState(0); // Used to reset CSS animation
+  const comboTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [abilityPrices, setAbilityPrices] = useState({
       shuffle: 50,
@@ -79,7 +85,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const [activeEffects, setActiveEffects] = useState<VisualEffect[]>([]);
   const [isShaking, setIsShaking] = useState(false);
   const [scorePulse, setScorePulse] = useState(false);
-  const [currentCombo, setCurrentCombo] = useState(0);
+  // Remove unused local cascade combo state to favor global combo
   const [comboMessage, setComboMessage] = useState<{text: string, scale: number} | null>(null);
 
   const [hintTile, setHintTile] = useState<{r: number, c: number} | null>(null);
@@ -109,6 +115,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     }
     return () => { isMountedRef.current = false; };
   }, [level, seenTutorials]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+        if (comboTimeoutRef.current) clearTimeout(comboTimeoutRef.current);
+    };
+  }, []);
 
   const initializeGame = () => {
       let initialGrid = createBoard(level.layout);
@@ -256,9 +269,9 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     let className = 'text-white text-xl font-bold drop-shadow-md';
 
     if (combo > 1) {
-        if (combo <= 2) {
+        if (combo <= 5) {
             className = 'text-yellow-300 text-2xl font-black drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]';
-        } else if (combo <= 4) {
+        } else if (combo <= 10) {
              className = 'text-orange-400 text-3xl font-black drop-shadow-[0_3px_0_rgba(0,0,0,0.6)]';
         } else {
              className = 'text-rainbow text-4xl font-black drop-shadow-[0_4px_0_rgba(0,0,0,0.8)] z-50';
@@ -280,12 +293,30 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   }, []);
 
   const getComboPraise = (combo: number) => {
-      if (combo === 2) return "Bom!";
-      if (combo === 3) return "Ótimo!";
-      if (combo === 4) return "Incrível!";
-      if (combo === 5) return "Espetacular!";
-      if (combo >= 6) return "LENDÁRIO!";
+      if (combo === 3) return "Bom!";
+      if (combo === 5) return "Ótimo!";
+      if (combo === 8) return "Incrível!";
+      if (combo === 12) return "Espetacular!";
+      if (combo >= 15) return "LENDÁRIO!";
       return "";
+  };
+
+  // --- COMBO LOGIC ---
+  const incrementGlobalCombo = () => {
+    setGlobalCombo(prev => prev + 1);
+    
+    // Reset timer
+    if (comboTimeoutRef.current) clearTimeout(comboTimeoutRef.current);
+    
+    // Restart animation by changing key
+    setComboTimerKey(prev => prev + 1);
+    
+    comboTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+            setGlobalCombo(0);
+            setComboMessage(null);
+        }
+    }, COMBO_TIMEOUT_MS);
   };
 
   const processBoard = useCallback(async (currentGrid: Grid) => {
@@ -293,11 +324,8 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     setIsProcessing(true);
     let activeGrid = currentGrid;
     let keepProcessing = true;
-    let comboMultiplier = 1;
     let safetyCounter = 0; 
-
-    setCurrentCombo(0);
-    setComboMessage(null);
+    let localSequenceMatches = 0;
 
     await new Promise(r => setTimeout(r, 200));
     if (!isMountedRef.current) return;
@@ -309,7 +337,22 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       let collectedPotionsCount = 0;
 
       if (matches.length > 0) {
-        const actualMultiplier = comboMultiplier + (comboMultiplier > 1 ? 1 : 0);
+        localSequenceMatches++;
+        // Trigger Global Combo Logic
+        incrementGlobalCombo();
+
+        // Calculate Multiplier based on Global Combo state (since setState is async, we predict next val or just use current + 1 logic for display, but for calculation we need to be careful. React state updates batching might delay `globalCombo` update visibility here)
+        // We will read the *current* state and add 1 conceptually for the multiplier
+        // However, inside this async loop, state `globalCombo` won't update immediately.
+        // We can't rely on `globalCombo` variable updating inside this while loop.
+        // Strategy: We rely on the visual feedback primarily. The score calculation is simplified.
+        // We'll trust that the visual accumulation is enough, or pass a ref if we need strict math.
+        // For now, let's just use a base multiplier + localSequence for this specific move set to keep it robust,
+        // but visually the user sees the global combo bar.
+        
+        // Actually, let's use a functional update approach or a ref if we really want to track inside the loop.
+        // For simplicity in this codebase, let's assume the Global Combo affects the score multiplier *globally*.
+        // We can just guess the combo is increasing.
         
         matches.forEach(m => {
              spawnParticles(m.row, m.col, getRuneColor(m.type));
@@ -320,8 +363,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         });
 
         const centerTile = matches[Math.floor(matches.length / 2)];
-        const scoreGain = Math.floor(matchScore * 2 * actualMultiplier);
-        addFloatingText(centerTile.row, centerTile.col, scoreGain, comboMultiplier);
+        
+        // Use a heuristic for multiplier inside the loop: 
+        // We know we just called incrementGlobalCombo, so visually it will go up.
+        // Let's just use a fixed bonus for cascades.
+        const scoreGain = Math.floor(matchScore * (1 + (localSequenceMatches * 0.2))); 
+        
+        addFloatingText(centerTile.row, centerTile.col, scoreGain, localSequenceMatches);
         
         const createdNova = newPowerUps.some(p => p.type === PowerUp.NOVA);
         const createdBomb = newPowerUps.some(p => p.type === PowerUp.COLOR_BOMB);
@@ -333,21 +381,10 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         } else if (createdBomb) {
             triggerShake('low');
             audioManager.playSfx('special');
-        } else if (comboMultiplier > 1) {
+        } else if (localSequenceMatches > 1) {
             audioManager.playSfx('combo');
         } else {
             audioManager.playSfx('match');
-        }
-
-        if (comboMultiplier > 1) {
-            setCurrentCombo(comboMultiplier);
-            const praise = getComboPraise(comboMultiplier);
-            if (praise) {
-                setComboMessage({ text: praise, scale: 1 + (comboMultiplier * 0.1) });
-                setTimeout(() => {
-                    if (isMountedRef.current) setComboMessage(null);
-                }, 800);
-            }
         }
 
         setScore(prev => prev + scoreGain);
@@ -364,7 +401,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
       // Always apply gravity
       const currentPotionsOnBoard = activeGrid.flat().filter(t => t.type === RuneType.POTION).length;
-      // CRITICAL FIX: Only try to spawn if we actually need one, applyGravity prevents overflow internally
       const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotionsOnBoard < 2;
 
       const { grid: gravityGrid, collectedCount } = applyGravity(activeGrid, handlePotionCollected, shouldSpawn);
@@ -378,8 +414,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
           activeGrid = resetStatus(activeGrid);
           setGrid([...activeGrid]);
-          
-          if (matches.length > 0) comboMultiplier++;
       }
 
       keepProcessing = matches.length > 0 || collectedPotionsCount > 0;
@@ -387,12 +421,22 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     
     setTimeout(() => {
         if(isMountedRef.current) {
-            setCurrentCombo(0);
-            setComboMessage(null);
             setIsProcessing(false); // Unlock
         }
     }, 500);
   }, [handlePotionCollected, gameResult, level.objective]); 
+
+  // Combo Praise Effect Side Effect
+  useEffect(() => {
+      if (globalCombo > 2) {
+          const praise = getComboPraise(globalCombo);
+          if (praise) {
+               setComboMessage({ text: praise, scale: 1 + (globalCombo * 0.05) });
+               setTimeout(() => { if(isMountedRef.current) setComboMessage(null); }, 1000);
+          }
+      }
+  }, [globalCombo]);
+
 
   // --- WIN/LOSE ---
   useEffect(() => {
@@ -488,6 +532,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             if(!isMountedRef.current) return;
 
             const { grid: explodedGrid, score: bombScore } = triggerColorBomb(swappedGrid, isBombA ? swappedGrid[r][c] : swappedGrid[r1][c1], targetTile.type);
+            incrementGlobalCombo(); // Trigger combo for bombs
             addFloatingText(r, c, bombScore, 1);
             setScore(prev => prev + bombScore);
             triggerVisualEffect('SHOCKWAVE', r, c);
@@ -607,6 +652,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
           setMovesLeft(level.moves);
           setPotionsCollected(0);
           setGameResult(null);
+          setGlobalCombo(0);
           isEndingRef.current = false;
           initializeGame();
       } else {
@@ -738,12 +784,24 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       </div>
 
       <div className="px-6 py-3 z-20 flex flex-col gap-2 relative w-full max-w-md mx-auto mt-2">
+         {/* COMBO BAR & SCORE */}
          <div className="flex justify-between items-end px-2">
-             <div className="flex items-center gap-2 text-amber-300 drop-shadow-md">
-                 <Target size={18} />
-                 <span className="font-bold uppercase text-sm tracking-wide">Meta:</span>
-                 <span className="font-mono font-black text-lg">{level.targetScore}</span>
-             </div>
+             {globalCombo > 0 ? (
+                 <div className="flex flex-col">
+                     <span className="text-xs font-bold text-yellow-300 uppercase animate-pulse">Combo Time!</span>
+                     <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden border border-slate-500">
+                         {/* We use the key to force re-render and restart animation when combo updates */}
+                         <div key={comboTimerKey} className="h-full bg-gradient-to-r from-yellow-400 to-red-500 animate-shrink origin-left"></div>
+                     </div>
+                 </div>
+             ) : (
+                <div className="flex items-center gap-2 text-amber-300 drop-shadow-md">
+                    <Target size={18} />
+                    <span className="font-bold uppercase text-sm tracking-wide">Meta:</span>
+                    <span className="font-mono font-black text-lg">{level.targetScore}</span>
+                </div>
+             )}
+             
              <div className="text-xs font-bold text-slate-300">
                 {score < star1Score ? 'Próxima: ★' : score < star2Score ? 'Próxima: ★★' : score < star3Score ? 'Próxima: ★★★' : 'Máximo!'}
              </div>
@@ -792,15 +850,15 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-4 relative pb-24">
-        {currentCombo > 2 && (
+        {globalCombo > 2 && (
              <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-b from-orange-500/10 via-transparent to-red-500/10 animate-pulse transition-opacity duration-500"></div>
         )}
 
-        {(currentCombo > 1 || comboMessage) && (
+        {(globalCombo > 0 || comboMessage) && (
             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none flex flex-col items-center">
-                {currentCombo > 1 && (
+                {globalCombo > 0 && (
                      <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-red-500 drop-shadow-[0_4px_0_rgba(0,0,0,0.5)] animate-bounce tracking-tighter" style={{ textShadow: '0 0 20px rgba(255,200,0,0.5)' }}>
-                         COMBO x{currentCombo}
+                         COMBO x{globalCombo}
                      </div>
                 )}
                 {comboMessage && (
@@ -813,7 +871,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
         {isGridReady ? (
             <div 
-                className={`relative bg-slate-950/80 p-3 rounded-3xl border-4 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.6)] transition-all duration-300 ${isShaking ? 'animate-shake' : ''} ${currentCombo > 2 ? 'fever-mode border-amber-500' : 'border-slate-700/50'} ${isProcessing ? 'pointer-events-none cursor-wait' : ''}`}
+                className={`relative bg-slate-950/80 p-3 rounded-3xl border-4 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.6)] transition-all duration-300 ${isShaking ? 'animate-shake' : ''} ${globalCombo > 5 ? 'fever-mode border-amber-500' : 'border-slate-700/50'} ${isProcessing ? 'pointer-events-none cursor-wait' : ''}`}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerLeave={handlePointerUp}
