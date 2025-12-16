@@ -111,11 +111,11 @@ const generateLevels = (count: number): LevelConfig[] => {
     // --- Objective Logic ---
     let objective: LevelObjective = 'SCORE';
     
-    // SCORE BALANCE: 
-    // Com 10 pts/peça, uma jogada média dá 30-50 pts.
-    // 20 movimentos x 50 pts = 1000 pts.
-    // Meta Base: 1000. Crescimento suave.
-    let objectiveTarget = 1000 + (id * 75); 
+    // SCORE BALANCE ADJUSTED:
+    // With new higher scoring logic (30pts base), we can keep targets somewhat challenging but lower the start.
+    // Base Target: 800 (was 1000).
+    // Growth: 50 per level (was 75).
+    let objectiveTarget = 800 + (id * 50); 
     
     // Every 5th level is a collection level
     if (id % 5 === 0 && id > 3) {

@@ -160,14 +160,14 @@ const damageAdjacentObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, sco
         if (tile.obstacle === ObstacleType.STONE && tile.status !== TileStatus.MATCHED) {
             tile.obstacleHealth -= 1;
             damagedIds.add(tile.id);
-            extraScore += 20; 
+            extraScore += 50; // Increased from 20
             tile.status = TileStatus.NEW; // Trigger shake/pop animation
 
             if (tile.obstacleHealth <= 0) {
                 tile.obstacle = ObstacleType.NONE;
                 tile.type = getRandomRune(); 
                 tile.status = TileStatus.NEW;
-                extraScore += 40;
+                extraScore += 100; // Increased from 40
             }
         }
     };
@@ -182,7 +182,7 @@ const damageAdjacentObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, sco
         const gridTile = newGrid[t.row][t.col];
         if (gridTile.obstacle === ObstacleType.ICE || gridTile.obstacle === ObstacleType.CHAINS) {
              gridTile.obstacle = ObstacleType.NONE;
-             extraScore += 30;
+             extraScore += 50; // Increased from 30
         }
     });
 
@@ -207,10 +207,10 @@ const collectExplosions = (
     visitedIds.add(tile.id);
     
     tilesToProcess.push(tile);
-    totalScore += 10; 
+    totalScore += 30; // Base score per tile increased from 10 to 30
 
     if (tile.powerUp !== PowerUp.NONE) {
-      totalScore += 20; 
+      totalScore += 50; // Powerup explosion bonus increased from 20 to 50
       let targets: {r: number, c: number}[] = [];
 
       if (tile.powerUp === PowerUp.HORIZONTAL) {
@@ -262,7 +262,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
     if (newGrid[bomb.row][bomb.col].status !== TileStatus.MATCHED) {
         newGrid[bomb.row][bomb.col].status = TileStatus.MATCHED;
         newGrid[bomb.row][bomb.col].type = RuneType.WILD;
-        score += 200; 
+        score += 500; // Increased from 200 to 500
     }
 
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -277,7 +277,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
                 tile.status !== TileStatus.MATCHED) {
                 newGrid[r][c].status = TileStatus.MATCHED;
                 newGrid[r][c].type = RuneType.WILD;
-                score += 10; 
+                score += 30; // Increased from 10 to 30
                 count++;
             }
         }
@@ -443,14 +443,14 @@ export const handleMatches = (
         if (currentTile.status !== TileStatus.MATCHED) {
             currentTile.obstacleHealth -= 1;
             currentTile.status = TileStatus.NEW; // Trigger shake
-            scoreBonus += 20;
+            scoreBonus += 50; // Increased
 
             if (currentTile.obstacleHealth <= 0) {
                 currentTile.obstacle = ObstacleType.NONE;
                 currentTile.type = getRandomRune(); 
                 currentTile.status = TileStatus.MATCHED; // Mark for clearing
                 currentTile.type = RuneType.WILD;
-                scoreBonus += 40;
+                scoreBonus += 100; // Increased
             }
         }
     } else {
@@ -461,7 +461,7 @@ export const handleMatches = (
         // Break overlays if they exist on the matched tile
         if (currentTile.obstacle === ObstacleType.ICE || currentTile.obstacle === ObstacleType.CHAINS) {
             currentTile.obstacle = ObstacleType.NONE;
-            scoreBonus += 30;
+            scoreBonus += 50; // Increased
         }
     }
   });

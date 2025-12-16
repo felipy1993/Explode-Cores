@@ -46,7 +46,7 @@ interface VisualEffect {
 }
 
 // SCORE BALANCE
-const POINTS_PER_MOVE = 50; 
+const POINTS_PER_MOVE = 100; // Aumentado de 50 para 100
 const DRAG_THRESHOLD = 30; // Pixels to trigger a swipe
 const COMBO_TIMEOUT_MS = 5000; // 5 seconds to keep the combo alive
 
@@ -71,7 +71,9 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
   // --- COMBO SYSTEM REFS & STATE ---
   const [globalCombo, setGlobalCombo] = useState(0);
-  const [comboTimerKey, setComboTimerKey] = useState(0); // Used to reset CSS animation
+  // Ref para cálculo síncrono dentro do loop while
+  const globalComboRef = useRef(0);
+  const [comboTimerKey, setComboTimerKey] = useState(0); 
   const comboTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [abilityPrices, setAbilityPrices] = useState({
@@ -85,7 +87,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const [activeEffects, setActiveEffects] = useState<VisualEffect[]>([]);
   const [isShaking, setIsShaking] = useState(false);
   const [scorePulse, setScorePulse] = useState(false);
-  // Remove unused local cascade combo state to favor global combo
+  
   const [comboMessage, setComboMessage] = useState<{text: string, scale: number} | null>(null);
 
   const [hintTile, setHintTile] = useState<{r: number, c: number} | null>(null);
@@ -266,6 +268,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     const id = Math.random().toString();
     
     let text = typeof scoreVal === 'string' ? scoreVal : `+${scoreVal}`;
+    // Se tiver combo, mostra junto (ex: +200 x3)
+    if (typeof scoreVal === 'number' && combo > 1) {
+        text = `+${scoreVal} x${combo}`;
+    }
+
     let className = 'text-white text-xl font-bold drop-shadow-md';
 
     if (combo > 1) {
@@ -303,7 +310,9 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
   // --- COMBO LOGIC ---
   const incrementGlobalCombo = () => {
-    setGlobalCombo(prev => prev + 1);
+    // Atualiza ambos, State e Ref
+    globalComboRef.current = globalComboRef.current + 1;
+    setGlobalCombo(globalComboRef.current);
     
     // Reset timer
     if (comboTimeoutRef.current) clearTimeout(comboTimeoutRef.current);
@@ -314,6 +323,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     comboTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) {
             setGlobalCombo(0);
+            globalComboRef.current = 0; // Reset ref too
             setComboMessage(null);
         }
     }, COMBO_TIMEOUT_MS);
@@ -325,7 +335,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     let activeGrid = currentGrid;
     let keepProcessing = true;
     let safetyCounter = 0; 
-    let localSequenceMatches = 0;
 
     await new Promise(r => setTimeout(r, 200));
     if (!isMountedRef.current) return;
@@ -337,23 +346,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       let collectedPotionsCount = 0;
 
       if (matches.length > 0) {
-        localSequenceMatches++;
         // Trigger Global Combo Logic
         incrementGlobalCombo();
 
-        // Calculate Multiplier based on Global Combo state (since setState is async, we predict next val or just use current + 1 logic for display, but for calculation we need to be careful. React state updates batching might delay `globalCombo` update visibility here)
-        // We will read the *current* state and add 1 conceptually for the multiplier
-        // However, inside this async loop, state `globalCombo` won't update immediately.
-        // We can't rely on `globalCombo` variable updating inside this while loop.
-        // Strategy: We rely on the visual feedback primarily. The score calculation is simplified.
-        // We'll trust that the visual accumulation is enough, or pass a ref if we need strict math.
-        // For now, let's just use a base multiplier + localSequence for this specific move set to keep it robust,
-        // but visually the user sees the global combo bar.
-        
-        // Actually, let's use a functional update approach or a ref if we really want to track inside the loop.
-        // For simplicity in this codebase, let's assume the Global Combo affects the score multiplier *globally*.
-        // We can just guess the combo is increasing.
-        
+        // Calculate Multiplier using REF for synchronous accuracy inside loop
+        const currentComboMultiplier = Math.max(1, globalComboRef.current);
+        const comboBonusMultiplier = 1 + (currentComboMultiplier * 0.2); // +20% per combo level
+
         matches.forEach(m => {
              spawnParticles(m.row, m.col, getRuneColor(m.type));
              if (m.powerUp === PowerUp.HORIZONTAL) triggerVisualEffect('LASER_H', m.row, m.col);
@@ -364,12 +363,10 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
         const centerTile = matches[Math.floor(matches.length / 2)];
         
-        // Use a heuristic for multiplier inside the loop: 
-        // We know we just called incrementGlobalCombo, so visually it will go up.
-        // Let's just use a fixed bonus for cascades.
-        const scoreGain = Math.floor(matchScore * (1 + (localSequenceMatches * 0.2))); 
+        // New scoring formula: Base * Multiplier
+        const scoreGain = Math.floor(matchScore * comboBonusMultiplier); 
         
-        addFloatingText(centerTile.row, centerTile.col, scoreGain, localSequenceMatches);
+        addFloatingText(centerTile.row, centerTile.col, scoreGain, currentComboMultiplier);
         
         const createdNova = newPowerUps.some(p => p.type === PowerUp.NOVA);
         const createdBomb = newPowerUps.some(p => p.type === PowerUp.COLOR_BOMB);
@@ -381,7 +378,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         } else if (createdBomb) {
             triggerShake('low');
             audioManager.playSfx('special');
-        } else if (localSequenceMatches > 1) {
+        } else if (currentComboMultiplier > 1) {
             audioManager.playSfx('combo');
         } else {
             audioManager.playSfx('match');
@@ -392,7 +389,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
         const { grid: afterMatchGrid, scoreBonus } = handleMatches(activeGrid, matches, newPowerUps);
         activeGrid = afterMatchGrid;
-        if (scoreBonus > 0) setScore(prev => prev + scoreBonus);
+        
+        if (scoreBonus > 0) {
+            // Apply multiplier to obstacle bonuses too
+            setScore(prev => prev + Math.floor(scoreBonus * comboBonusMultiplier));
+        }
         
         setGrid([...activeGrid]);
         await new Promise(r => setTimeout(r, ANIMATION_DELAY));
@@ -533,8 +534,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
             const { grid: explodedGrid, score: bombScore } = triggerColorBomb(swappedGrid, isBombA ? swappedGrid[r][c] : swappedGrid[r1][c1], targetTile.type);
             incrementGlobalCombo(); // Trigger combo for bombs
-            addFloatingText(r, c, bombScore, 1);
-            setScore(prev => prev + bombScore);
+            
+            // Bomb gets massive bonus
+            const comboMultiplier = Math.max(1, globalComboRef.current);
+            const totalBombScore = Math.floor(bombScore * (1 + (comboMultiplier * 0.3)));
+            
+            addFloatingText(r, c, totalBombScore, comboMultiplier);
+            setScore(prev => prev + totalBombScore);
             triggerVisualEffect('SHOCKWAVE', r, c);
             setGrid(explodedGrid);
             await new Promise(r => setTimeout(r, ANIMATION_DELAY));
@@ -653,6 +659,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
           setPotionsCollected(0);
           setGameResult(null);
           setGlobalCombo(0);
+          globalComboRef.current = 0;
           isEndingRef.current = false;
           initializeGame();
       } else {
