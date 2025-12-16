@@ -45,8 +45,8 @@ interface VisualEffect {
     c: number;
 }
 
-// SCORE BALANCE: Increased from 50 to 100 to make scoring easier
-const POINTS_PER_MOVE = 150; 
+// SCORE BALANCE: Increased from 150 to 500 to guarantee stars on win
+const POINTS_PER_MOVE = 500; 
 
 const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, seenTutorials, onTutorialSeen, inventoryBoosters, onConsumeBooster, onOpenSettings }) => {
   const [grid, setGrid] = useState<Grid>([]);
@@ -82,10 +82,10 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
-  // Star Thresholds - REBALANCE: Made easier to get stars
+  // Star Thresholds - REBALANCE: Super easy stars
   const star1Score = level.targetScore;
-  const star2Score = Math.floor(level.targetScore * 1.2); // Was 1.5
-  const star3Score = Math.floor(level.targetScore * 1.5); // Was 2.5
+  const star2Score = Math.floor(level.targetScore * 1.1); // Was 1.2
+  const star3Score = Math.floor(level.targetScore * 1.3); // Was 1.5
 
   // --- INITIALIZATION ---
   useEffect(() => {

@@ -45,7 +45,7 @@ const TEMPLATES: Record<string, string[]> = {
         "###..###", "###..###", "###..###", "########", "########", "###..###", "###..###", "###..###"
     ],
     SPIRAL: [
-        "########", "######.#", "#.####.#", "#.#..#.#", "#.####.#", "#......#", "########", "########"
+        "########", "######.#", "#.####.#", "#.####.#", "#.####.#", "#......#", "########", "########"
     ]
 };
 
@@ -110,10 +110,10 @@ const generateLevels = (count: number): LevelConfig[] => {
 
     // --- Objective Logic ---
     let objective: LevelObjective = 'SCORE';
-    // REBALANCE: Aumentamos drasticamente a meta de pontos.
-    // Antes era 800 base, o que era atingido em 3 jogadas de combos.
-    // Agora base é 3000, forçando o jogador a jogar mais tempo.
-    let objectiveTarget = 3000 + (id * 150); 
+    // REBALANCE: Drastically lower targets.
+    // Antes: 3000 base. Agora: 1000 base.
+    // Com a pontuação por peça 5x maior, isso vai ser super fácil.
+    let objectiveTarget = 1000 + (id * 50); 
     
     // Every 5th level is a collection level
     if (id % 5 === 0 && id > 3) {

@@ -170,14 +170,14 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         if (tile.obstacle === ObstacleType.STONE && tile.status !== TileStatus.MATCHED) {
             tile.obstacleHealth -= 1;
             damagedIds.add(tile.id);
-            extraScore += 20; 
+            extraScore += 50; // Increased form 20
             tile.status = TileStatus.NEW; 
 
             if (tile.obstacleHealth <= 0) {
                 tile.obstacle = ObstacleType.NONE;
                 tile.type = getRandomRune(); 
                 tile.status = TileStatus.NEW;
-                extraScore += 50; 
+                extraScore += 100; // Increased from 50
             }
         }
     };
@@ -191,7 +191,7 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         const gridTile = newGrid[t.row][t.col];
         if (gridTile.obstacle === ObstacleType.ICE || gridTile.obstacle === ObstacleType.CHAINS) {
              gridTile.obstacle = ObstacleType.NONE;
-             extraScore += 30; 
+             extraScore += 100; // Increased from 30
         }
     });
 
@@ -216,10 +216,11 @@ const collectExplosions = (
     visitedIds.add(tile.id);
     
     tilesToDestroy.push(tile);
-    totalScore += 10; 
+    // REBALANCE: HUGE POINT INCREASE
+    totalScore += 50; // Was 10
 
     if (tile.powerUp !== PowerUp.NONE) {
-      totalScore += 30; 
+      totalScore += 100; // Was 30
       let targets: {r: number, c: number}[] = [];
 
       if (tile.powerUp === PowerUp.HORIZONTAL) {
@@ -267,7 +268,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
     if (newGrid[bomb.row][bomb.col].status !== TileStatus.MATCHED) {
         newGrid[bomb.row][bomb.col].status = TileStatus.MATCHED;
         newGrid[bomb.row][bomb.col].type = RuneType.WILD;
-        score += 100; 
+        score += 500; // Massive bonus for using bomb
     }
 
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -276,7 +277,7 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
             if (!tile.isEmpty && tile.obstacle === ObstacleType.NONE && tile.type === targetType && tile.status !== TileStatus.MATCHED) {
                 newGrid[r][c].status = TileStatus.MATCHED;
                 newGrid[r][c].type = RuneType.WILD;
-                score += 15; 
+                score += 50; 
                 count++;
             }
         }
