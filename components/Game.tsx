@@ -5,7 +5,7 @@ import { createBoard, findMatches, handleMatches, applyGravity, resetStatus, tri
 import Rune from './Rune';
 import TutorialModal from './TutorialModal';
 import LevelCompleteModal from './LevelCompleteModal';
-import { ArrowLeft, RefreshCw, Coins, Zap, Bomb, FlaskConical, Settings, Star, Target } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Coins, Zap, Bomb, FlaskConical, Settings, Star, Target, Sparkles, Hourglass } from 'lucide-react';
 import { audioManager } from '../utils/audioManager';
 
 interface GameProps {
@@ -49,6 +49,7 @@ interface VisualEffect {
 const POINTS_PER_MOVE = 500; // Valor alto para recompensar terminar rápido
 const DRAG_THRESHOLD = 30; // Pixels to trigger a swipe
 const COMBO_TIMEOUT_MS = 5000; // 5 seconds to keep the combo alive
+const MIN_MOVES_TO_FINISH = 15; // Jogador deve jogar pelo menos 15 vezes (se tiver movimentos suficientes)
 
 const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, seenTutorials, onTutorialSeen, inventoryBoosters, onConsumeBooster, onOpenSettings }) => {
   const [grid, setGrid] = useState<Grid>([]);
@@ -407,8 +408,8 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       // Always apply gravity
       const currentPotionsOnBoard = activeGrid.flat().filter(t => t.type === RuneType.POTION).length;
       
-      // LOGIC UPDATE: Allow up to 3 potions on screen to facilitate gameplay
-      const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotionsOnBoard < 3;
+      // LOGIC UPDATE: Allow up to 4 potions on screen (increased from 3)
+      const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotionsOnBoard < 4;
 
       const { grid: gravityGrid, collectedCount } = applyGravity(activeGrid, handlePotionCollected, shouldSpawn);
       activeGrid = gravityGrid;
@@ -445,20 +446,20 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   }, [globalCombo]);
 
 
-  // --- WIN/LOSE ---
+  // --- WIN/LOSE CHECK ---
   useEffect(() => {
     if (gameResult || !isGridReady || isEndingRef.current || isProcessing || isAutoShuffling) return;
 
-    let hasWon = false;
-    if (level.objective === 'SCORE' && score >= level.targetScore) hasWon = true;
-    else if (level.objective === 'COLLECT_POTIONS' && potionsCollected >= level.objectiveTarget) hasWon = true;
+    let objectiveMet = false;
+    if (level.objective === 'SCORE' && score >= level.targetScore) objectiveMet = true;
+    else if (level.objective === 'COLLECT_POTIONS' && potionsCollected >= level.objectiveTarget) objectiveMet = true;
 
-    if (hasWon || movesLeft <= 0) {
-        let actualWin = false;
-        if (level.objective === 'SCORE' && score >= level.targetScore) actualWin = true;
-        if (level.objective === 'COLLECT_POTIONS' && potionsCollected >= level.objectiveTarget) actualWin = true;
-        
-        if (actualWin) {
+    // RULE: Must play at least 15 moves OR run out of moves
+    const movesPlayed = level.moves - movesLeft;
+    const canFinish = movesPlayed >= MIN_MOVES_TO_FINISH || movesLeft <= 0;
+
+    if (canFinish) {
+        if (objectiveMet) {
             isEndingRef.current = true; 
             audioManager.playSfx('win');
             const moveBonus = movesLeft * POINTS_PER_MOVE;
@@ -478,6 +479,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
                 }
             }, 500);
         } else if (movesLeft <= 0) {
+            // Out of moves and objective not met
             isEndingRef.current = true;
             audioManager.playSfx('lose');
             setTimeout(() => {
@@ -487,6 +489,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             }, 500);
         }
     }
+    // If objective met but !canFinish, game continues (Bonus Mode)
   }, [score, potionsCollected, movesLeft, isProcessing, level, gameResult, isGridReady, isAutoShuffling, star2Score, star3Score]);
 
 
@@ -553,7 +556,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             if(!isMountedRef.current) return;
             
             const currentPotions = explodedGrid.flat().filter(t => t.type === RuneType.POTION).length;
-            const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotions < 3;
+            const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotions < 4;
 
             let { grid: finalGrid } = applyGravity(explodedGrid, handlePotionCollected, shouldSpawn);
             setGrid([...finalGrid]);
@@ -763,6 +766,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const star1Pos = (star1Score / barMax) * 100;
   const star2Pos = (star2Score / barMax) * 100;
 
+  // Bonus Logic Check for UI
+  const movesPlayed = level.moves - movesLeft;
+  const isBonusMode = (score >= level.targetScore || (level.objective === 'COLLECT_POTIONS' && potionsCollected >= level.objectiveTarget)) && movesPlayed < MIN_MOVES_TO_FINISH && movesLeft > 0;
+  const movesNeeded = Math.max(0, MIN_MOVES_TO_FINISH - movesPlayed);
+
   return (
     <div className={`flex flex-col h-full w-full ${level.background} text-white relative overflow-hidden`}>
       {activeTutorial && (
@@ -809,9 +817,17 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
                  </div>
              ) : (
                 <div className="flex items-center gap-2 text-amber-300 drop-shadow-md">
-                    <Target size={18} />
-                    <span className="font-bold uppercase text-sm tracking-wide">Meta:</span>
-                    <span className="font-mono font-black text-lg">{level.targetScore}</span>
+                    {isBonusMode ? (
+                        <span className="font-black uppercase text-sm tracking-wide text-yellow-300 animate-pulse flex items-center gap-1">
+                            <Sparkles size={14} /> JOGUE +{movesNeeded}
+                        </span>
+                    ) : (
+                        <>
+                            <Target size={18} />
+                            <span className="font-bold uppercase text-sm tracking-wide">Meta:</span>
+                            <span className="font-mono font-black text-lg">{level.targetScore}</span>
+                        </>
+                    )}
                 </div>
              )}
              
@@ -822,7 +838,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
         <div className="relative h-6 bg-slate-900/80 rounded-full border-2 border-slate-600 shadow-inner">
             <div
-                className="h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r from-green-400 to-emerald-600 shadow-[0_0_10px_rgba(74,222,128,0.5)] relative overflow-hidden"
+                className={`h-full rounded-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(74,222,128,0.5)] relative overflow-hidden ${isBonusMode ? 'bg-gradient-to-r from-yellow-400 to-amber-600' : 'bg-gradient-to-r from-green-400 to-emerald-600'}`}
                 style={{ width: `${barFill}%` }}
             >
                 <div className="absolute top-0 bottom-0 -right-full w-full bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 animate-[wiggle_2s_infinite]"></div>

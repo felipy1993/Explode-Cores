@@ -573,8 +573,8 @@ export const applyGravity = (
 
 const generateNewTile = (r: number, c: number, allowPotion: boolean | undefined): Tile => {
     let type = getRandomRune();
-    // INCREASED: 40% chance to spawn potion (was 25%) IF allowed and not already spawned this frame
-    if (allowPotion && Math.random() < 0.4) {
+    // INCREASED: 50% chance to spawn potion (was 40%) IF allowed and not already spawned this frame
+    if (allowPotion && Math.random() < 0.5) {
         type = RuneType.POTION;
     }
 
