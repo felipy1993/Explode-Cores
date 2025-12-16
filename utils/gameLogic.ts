@@ -239,7 +239,11 @@ const collectExplosions = (
 
       targets.forEach(({r, c}) => {
         const targetTile = grid[r][c];
-        if (!visitedIds.has(targetTile.id) && targetTile.status !== TileStatus.MATCHED && !targetTile.isEmpty) {
+        // CRITICAL FIX: Ensure Potions are NEVER targeted by explosions
+        if (!visitedIds.has(targetTile.id) && 
+            targetTile.status !== TileStatus.MATCHED && 
+            !targetTile.isEmpty && 
+            targetTile.type !== RuneType.POTION) { 
             queue.push(targetTile);
         }
       });
@@ -264,8 +268,13 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
             const tile = newGrid[r][c];
-            // Target all runes of type, but NOT stones directly (unless stones act as blockers, handled later)
-            if (!tile.isEmpty && tile.obstacle === ObstacleType.NONE && tile.type === targetType && tile.status !== TileStatus.MATCHED) {
+            // Target all runes of type, but NOT stones directly
+            // Also explicitly excluding POTION here as a safety measure, though the UI prevents swapping Bomb+Potion
+            if (!tile.isEmpty && 
+                tile.obstacle === ObstacleType.NONE && 
+                tile.type === targetType && 
+                tile.type !== RuneType.POTION && 
+                tile.status !== TileStatus.MATCHED) {
                 newGrid[r][c].status = TileStatus.MATCHED;
                 newGrid[r][c].type = RuneType.WILD;
                 score += 10; 
