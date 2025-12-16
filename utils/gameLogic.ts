@@ -521,14 +521,24 @@ export const applyGravity = (
           if (structure[r] === 'EMPTY' || structure[r] === 'STONE') {
               finalGrid[r][c] = { ...grid[r][c] };
           } else {
-              // We need to fill this slot
+              // Check if this is the bottom-most slot (exit point) for this column
+              // Logic: If there are NO 'SLOT' or 'STONE' types below this row 'r', 
+              // then 'r' is the functional bottom.
+              let isExitPoint = true;
+              for(let k = r + 1; k < BOARD_SIZE; k++) {
+                  if (structure[k] !== 'EMPTY') {
+                      isExitPoint = false;
+                      break;
+                  }
+              }
+
               if (tileIdx >= 0) {
                   // Existing tile falling down
                   const tile = colTiles[tileIdx];
-                  const isBottom = (r === BOARD_SIZE - 1) || (structure[r+1] === 'EMPTY'); // Simple bottom check
                   
-                  // Potion Collection Logic
-                  if (tile.type === RuneType.POTION && r === BOARD_SIZE - 1) { // Only collect at very bottom row for simplicity
+                  // Potion Collection Logic:
+                  // Collect if it is at the exit point of the column
+                  if (tile.type === RuneType.POTION && isExitPoint) { 
                       collectedCount++;
                       if (potionCountCb) potionCountCb(r, c);
                       // Don't place this tile, consume it.
