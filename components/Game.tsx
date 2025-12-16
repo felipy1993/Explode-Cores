@@ -82,13 +82,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
-  // Star Thresholds - Standard Progression
-  // Star 1: Meet Target
-  // Star 2: 150% Target
-  // Star 3: 200% Target
+  // Star Thresholds - Adjusted for Easier Stars
+  // Star 1: Meet Target (100%)
+  // Star 2: 120% Target (was 150%) - Easier to get
+  // Star 3: 150% Target (was 200%) - Much easier to get max rank
   const star1Score = level.targetScore;
-  const star2Score = Math.floor(level.targetScore * 1.5); 
-  const star3Score = Math.floor(level.targetScore * 2.0);
+  const star2Score = Math.floor(level.targetScore * 1.2); 
+  const star3Score = Math.floor(level.targetScore * 1.5);
 
   // --- INITIALIZATION ---
   useEffect(() => {
