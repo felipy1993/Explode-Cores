@@ -47,6 +47,7 @@ interface VisualEffect {
 
 // SCORE BALANCE
 const POINTS_PER_MOVE = 50; 
+const DRAG_THRESHOLD = 30; // Pixels to trigger a swipe
 
 const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, seenTutorials, onTutorialSeen, inventoryBoosters, onConsumeBooster, onOpenSettings }) => {
   const [grid, setGrid] = useState<Grid>([]);
@@ -63,6 +64,9 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   
   const isEndingRef = useRef(false);
   const isMountedRef = useRef(true); 
+
+  // Dragging State Refs (Better than state to avoid re-renders during rapid movement)
+  const dragStartRef = useRef<{ r: number, c: number, x: number, y: number } | null>(null);
 
   const [abilityPrices, setAbilityPrices] = useState({
       shuffle: 50,
@@ -543,6 +547,56 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     }
   };
 
+  // --- DRAG / SWIPE HANDLERS ---
+  const handlePointerDown = (e: React.PointerEvent, r: number, c: number) => {
+    if (isProcessing || !isGridReady || gameResult) return;
+    
+    // Start tracking drag
+    dragStartRef.current = { r, c, x: e.clientX, y: e.clientY };
+    
+    // Select the tile visually (mimic click)
+    // We only select if not already engaged in a swap, handled by handleTileClick
+    handleTileClick(r, c);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragStartRef.current || isProcessing) return;
+
+    const { r: startR, c: startC, x: startX, y: startY } = dragStartRef.current;
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+
+    // Check if moved enough to count as a swipe
+    if (Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD) {
+        let targetR = startR;
+        let targetC = startC;
+
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            // Horizontal Swipe
+            targetC += deltaX > 0 ? 1 : -1;
+        } else {
+            // Vertical Swipe
+            targetR += deltaY > 0 ? 1 : -1;
+        }
+
+        // Validate bounds
+        if (targetR >= 0 && targetR < BOARD_SIZE && targetC >= 0 && targetC < BOARD_SIZE) {
+            // If we swiped to a valid neighbor, simulate a click on that neighbor
+            // This works because 'handleTileClick' handles the logic: 
+            // 1. We already selected startR/startC on PointerDown
+            // 2. Clicking targetR/targetC now triggers the swap logic
+            handleTileClick(targetR, targetC);
+        }
+
+        // Stop tracking this drag immediately so we don't trigger multiple swaps
+        dragStartRef.current = null;
+    }
+  };
+
+  const handlePointerUp = () => {
+    dragStartRef.current = null;
+  };
+
   const handleResultAction = (action: 'NEXT' | 'RETRY' | 'EXIT') => {
       audioManager.playSfx('ui');
       if (!gameResult) return;
@@ -758,7 +812,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         )}
 
         {isGridReady ? (
-            <div className={`relative bg-slate-950/80 p-3 rounded-3xl border-4 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.6)] transition-all duration-300 ${isShaking ? 'animate-shake' : ''} ${currentCombo > 2 ? 'fever-mode border-amber-500' : 'border-slate-700/50'} ${isProcessing ? 'pointer-events-none cursor-wait' : ''}`}>
+            <div 
+                className={`relative bg-slate-950/80 p-3 rounded-3xl border-4 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.6)] transition-all duration-300 ${isShaking ? 'animate-shake' : ''} ${currentCombo > 2 ? 'fever-mode border-amber-500' : 'border-slate-700/50'} ${isProcessing ? 'pointer-events-none cursor-wait' : ''}`}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerUp}
+                style={{ touchAction: 'none' }} // Prevents scrolling while swiping
+            >
                 <div className="relative" style={{ width: 'min(90vw, 400px)', height: 'min(90vw, 400px)' }}>
                 {grid.flat().map((tile) => (
                     <div
@@ -771,12 +831,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
                             left: `${tile.col * CELL_SIZE_PCT}%`,
                             zIndex: tile.status === TileStatus.DROPPING ? 20 : 10
                         }}
+                        onPointerDown={(e) => handlePointerDown(e, tile.row, tile.col)}
                     >
                         <Rune 
                             tile={tile}
                             isSelected={selectedTile?.r === tile.row && selectedTile?.c === tile.col}
                             isHint={hintTile?.r === tile.row && hintTile?.c === tile.col}
-                            onClick={() => handleTileClick(tile.row, tile.col)}
+                            onClick={() => {}} // Click is handled by PointerDown now
                         />
                     </div>
                 ))}
