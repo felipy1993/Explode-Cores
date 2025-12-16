@@ -46,7 +46,7 @@ interface VisualEffect {
 }
 
 // SCORE BALANCE
-const POINTS_PER_MOVE = 100; // Aumentado de 50 para 100
+const POINTS_PER_MOVE = 500; // Valor alto para recompensar terminar rápido
 const DRAG_THRESHOLD = 30; // Pixels to trigger a swipe
 const COMBO_TIMEOUT_MS = 5000; // 5 seconds to keep the combo alive
 
@@ -95,8 +95,8 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
   const star1Score = level.targetScore;
-  const star2Score = Math.floor(level.targetScore * 1.2); 
-  const star3Score = Math.floor(level.targetScore * 1.5);
+  const star2Score = Math.floor(level.targetScore * 1.5); // Ajustado para ser desafiador
+  const star3Score = Math.floor(level.targetScore * 2.2); // 3 Estrelas requer combos de verdade
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -270,7 +270,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     let text = typeof scoreVal === 'string' ? scoreVal : `+${scoreVal}`;
     // Se tiver combo, mostra junto (ex: +200 x3)
     if (typeof scoreVal === 'number' && combo > 1) {
-        text = `+${scoreVal} x${combo}`;
+        text = `+${scoreVal}`; // O número já vem multiplicado, mostramos apenas o valor total
     }
 
     let className = 'text-white text-xl font-bold drop-shadow-md';
@@ -300,11 +300,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   }, []);
 
   const getComboPraise = (combo: number) => {
-      if (combo === 3) return "Bom!";
-      if (combo === 5) return "Ótimo!";
-      if (combo === 8) return "Incrível!";
-      if (combo === 12) return "Espetacular!";
-      if (combo >= 15) return "LENDÁRIO!";
+      if (combo === 2) return "Bom!";
+      if (combo === 4) return "Ótimo!";
+      if (combo === 6) return "Incrível!";
+      if (combo === 8) return "Espetacular!";
+      if (combo >= 10) return "LENDÁRIO!";
       return "";
   };
 
@@ -349,9 +349,10 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         // Trigger Global Combo Logic
         incrementGlobalCombo();
 
-        // Calculate Multiplier using REF for synchronous accuracy inside loop
+        // SCORING ADJUSTMENT: Aggressive Scaling
+        // Cada nível de combo adiciona 50% a mais de pontos (Base 100% + 50% * Combo)
         const currentComboMultiplier = Math.max(1, globalComboRef.current);
-        const comboBonusMultiplier = 1 + (currentComboMultiplier * 0.2); // +20% per combo level
+        const comboBonusMultiplier = 1 + (currentComboMultiplier * 0.5); 
 
         matches.forEach(m => {
              spawnParticles(m.row, m.col, getRuneColor(m.type));
@@ -429,10 +430,10 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
   // Combo Praise Effect Side Effect
   useEffect(() => {
-      if (globalCombo > 2) {
+      if (globalCombo > 1) {
           const praise = getComboPraise(globalCombo);
           if (praise) {
-               setComboMessage({ text: praise, scale: 1 + (globalCombo * 0.05) });
+               setComboMessage({ text: praise, scale: 1 + (globalCombo * 0.1) });
                setTimeout(() => { if(isMountedRef.current) setComboMessage(null); }, 1000);
           }
       }
@@ -535,9 +536,9 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             const { grid: explodedGrid, score: bombScore } = triggerColorBomb(swappedGrid, isBombA ? swappedGrid[r][c] : swappedGrid[r1][c1], targetTile.type);
             incrementGlobalCombo(); // Trigger combo for bombs
             
-            // Bomb gets massive bonus
+            // Bomb gets massive bonus from combo
             const comboMultiplier = Math.max(1, globalComboRef.current);
-            const totalBombScore = Math.floor(bombScore * (1 + (comboMultiplier * 0.3)));
+            const totalBombScore = Math.floor(bombScore * (1 + (comboMultiplier * 0.5)));
             
             addFloatingText(r, c, totalBombScore, comboMultiplier);
             setScore(prev => prev + totalBombScore);

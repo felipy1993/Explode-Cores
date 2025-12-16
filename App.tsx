@@ -112,10 +112,13 @@ const generateLevels = (count: number): LevelConfig[] => {
     let objective: LevelObjective = 'SCORE';
     
     // SCORE BALANCE ADJUSTED:
-    // With new higher scoring logic (30pts base), we can keep targets somewhat challenging but lower the start.
-    // Base Target: 800 (was 1000).
-    // Growth: 50 per level (was 75).
-    let objectiveTarget = 800 + (id * 50); 
+    // With new higher scoring logic (50pts base), we need HIGHER targets.
+    // Base Target: 1000.
+    // Growth: 120 per level.
+    // Level 1: 1120
+    // Level 10: 2200
+    // Level 50: 7000
+    let objectiveTarget = 1000 + (id * 120); 
     
     // Every 5th level is a collection level
     if (id % 5 === 0 && id > 3) {
@@ -134,6 +137,7 @@ const generateLevels = (count: number): LevelConfig[] => {
     if (difficulty === 'Difícil') moves = 30;
     
     if (layoutKey === 'SPIRAL' || layoutKey === 'DONUT' || layoutKey === 'CASTLE') moves += 5;
+    if (id > 50) moves += 5; // Help for very high levels
 
     return {
       id,
