@@ -95,8 +95,8 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
   const star1Score = level.targetScore;
-  const star2Score = Math.floor(level.targetScore * 1.5); // Ajustado para ser desafiador
-  const star3Score = Math.floor(level.targetScore * 2.2); // 3 Estrelas requer combos de verdade
+  const star2Score = Math.floor(level.targetScore * 1.5); 
+  const star3Score = Math.floor(level.targetScore * 2.2); 
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -134,7 +134,10 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
           const existing = initialGrid.flat().filter(t => t.type === RuneType.POTION).length;
           potionsPlaced = existing;
 
-          while (potionsPlaced < 2 && attempts < 100) {
+          // Start with more potions if objective is high
+          const initialPotions = level.objectiveTarget > 4 ? 3 : 2;
+
+          while (potionsPlaced < initialPotions && attempts < 100) {
               const r = Math.floor(Math.random() * (BOARD_SIZE / 2)); 
               const c = Math.floor(Math.random() * BOARD_SIZE);
               const tile = initialGrid[r][c];
@@ -349,10 +352,10 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         // Trigger Global Combo Logic
         incrementGlobalCombo();
 
-        // SCORING ADJUSTMENT: Aggressive Scaling
-        // Cada nível de combo adiciona 50% a mais de pontos (Base 100% + 50% * Combo)
+        // SCORING ADJUSTMENT: 20% Increase per combo level (Balanced)
+        // Base 100% + 20% * Combo
         const currentComboMultiplier = Math.max(1, globalComboRef.current);
-        const comboBonusMultiplier = 1 + (currentComboMultiplier * 0.5); 
+        const comboBonusMultiplier = 1 + (currentComboMultiplier * 0.2); 
 
         matches.forEach(m => {
              spawnParticles(m.row, m.col, getRuneColor(m.type));
@@ -403,7 +406,9 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
       // Always apply gravity
       const currentPotionsOnBoard = activeGrid.flat().filter(t => t.type === RuneType.POTION).length;
-      const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotionsOnBoard < 2;
+      
+      // LOGIC UPDATE: Allow up to 3 potions on screen to facilitate gameplay
+      const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotionsOnBoard < 3;
 
       const { grid: gravityGrid, collectedCount } = applyGravity(activeGrid, handlePotionCollected, shouldSpawn);
       activeGrid = gravityGrid;
@@ -538,7 +543,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             
             // Bomb gets massive bonus from combo
             const comboMultiplier = Math.max(1, globalComboRef.current);
-            const totalBombScore = Math.floor(bombScore * (1 + (comboMultiplier * 0.5)));
+            const totalBombScore = Math.floor(bombScore * (1 + (comboMultiplier * 0.2)));
             
             addFloatingText(r, c, totalBombScore, comboMultiplier);
             setScore(prev => prev + totalBombScore);
@@ -548,7 +553,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             if(!isMountedRef.current) return;
             
             const currentPotions = explodedGrid.flat().filter(t => t.type === RuneType.POTION).length;
-            const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotions < 2;
+            const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotions < 3;
 
             let { grid: finalGrid } = applyGravity(explodedGrid, handlePotionCollected, shouldSpawn);
             setGrid([...finalGrid]);

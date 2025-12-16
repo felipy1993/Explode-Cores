@@ -112,13 +112,13 @@ const generateLevels = (count: number): LevelConfig[] => {
     let objective: LevelObjective = 'SCORE';
     
     // SCORE BALANCE ADJUSTED:
-    // With new higher scoring logic (50pts base), we need HIGHER targets.
+    // With 20% combo, we revert to a moderate growth curve.
     // Base Target: 1000.
-    // Growth: 120 per level.
-    // Level 1: 1120
-    // Level 10: 2200
-    // Level 50: 7000
-    let objectiveTarget = 1000 + (id * 120); 
+    // Growth: 80 per level (was 120).
+    // Level 1: 1080
+    // Level 10: 1800
+    // Level 50: 5000
+    let objectiveTarget = 1000 + (id * 80); 
     
     // Every 5th level is a collection level
     if (id % 5 === 0 && id > 3) {
