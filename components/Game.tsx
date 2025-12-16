@@ -45,7 +45,7 @@ interface VisualEffect {
     c: number;
 }
 
-// SCORE BALANCE: Bonus per remaining move. Should be consistent with average move score.
+// SCORE BALANCE
 const POINTS_PER_MOVE = 50; 
 
 const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, seenTutorials, onTutorialSeen, inventoryBoosters, onConsumeBooster, onOpenSettings }) => {
@@ -62,7 +62,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const [potionsCollected, setPotionsCollected] = useState(0);
   
   const isEndingRef = useRef(false);
-  const isMountedRef = useRef(true); // SAFETY: Check this before setState in asyncs
+  const isMountedRef = useRef(true); 
 
   const [abilityPrices, setAbilityPrices] = useState({
       shuffle: 50,
@@ -82,10 +82,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAutoShuffling, setIsAutoShuffling] = useState(false);
 
-  // Star Thresholds - Adjusted for Easier Stars
-  // Star 1: Meet Target (100%)
-  // Star 2: 120% Target (was 150%) - Easier to get
-  // Star 3: 150% Target (was 200%) - Much easier to get max rank
   const star1Score = level.targetScore;
   const star2Score = Math.floor(level.targetScore * 1.2); 
   const star3Score = Math.floor(level.targetScore * 1.5);
@@ -113,17 +109,14 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const initializeGame = () => {
       let initialGrid = createBoard(level.layout);
     
-      // Ensure potions exist if objective requires
       if (level.objective === 'COLLECT_POTIONS') {
-          // Inject 2 potions randomly in the top half
           let potionsPlaced = 0;
           let attempts = 0;
-          // Count existing just in case layout had them
           const existing = initialGrid.flat().filter(t => t.type === RuneType.POTION).length;
           potionsPlaced = existing;
 
           while (potionsPlaced < 2 && attempts < 100) {
-              const r = Math.floor(Math.random() * (BOARD_SIZE / 2)); // Top half
+              const r = Math.floor(Math.random() * (BOARD_SIZE / 2)); 
               const c = Math.floor(Math.random() * BOARD_SIZE);
               const tile = initialGrid[r][c];
               if (tile.obstacle === ObstacleType.NONE && !tile.isEmpty && tile.type !== RuneType.POTION) {
@@ -155,7 +148,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
     hintTimerRef.current = setTimeout(() => {
       if (!isMountedRef.current) return;
-      // Simple random hint (can be improved to find real moves)
       const r = Math.floor(Math.random() * BOARD_SIZE);
       const c = Math.floor(Math.random() * BOARD_SIZE);
       setHintTile({r, c});
@@ -188,8 +180,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
           }
       };
       
-      // Delay check slightly to let animations settle
-      const t = setTimeout(checkMoves, 500);
+      const t = setTimeout(checkMoves, 1000); // Check after stable state
       return () => clearTimeout(t);
   }, [grid, isGridReady, isProcessing, gameResult, activeTutorial, isAutoShuffling]);
 
@@ -201,7 +192,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
   const triggerShake = (intensity: 'low' | 'high' = 'low') => {
     setIsShaking(true);
-    // Note: The CSS animation duration is fixed, but we could make it dynamic in a real app
     setTimeout(() => {
         if(isMountedRef.current) setIsShaking(false);
     }, intensity === 'high' ? 500 : 300);
@@ -210,11 +200,9 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   const triggerVisualEffect = (type: VisualEffect['type'], r: number, c: number) => {
       const id = Math.random().toString();
       setActiveEffects(prev => [...prev, { id, type, r, c }]);
-      
-      // Auto clean up effect after animation
       setTimeout(() => {
           if (isMountedRef.current) setActiveEffects(prev => prev.filter(e => e.id !== id));
-      }, 700); // Slightly longer than CSS animations
+      }, 700);
   };
 
   const triggerScorePulse = () => {
@@ -240,8 +228,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
           });
       }
       setParticles(prev => [...prev, ...newParticles]);
-      
-      // Cleanup
       setTimeout(() => {
           if(isMountedRef.current) setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
       }, 700);
@@ -249,13 +235,13 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
   const getRuneColor = (type: RuneType): string => {
       switch(type) {
-          case RuneType.FIRE: return '#f87171'; // red-400
-          case RuneType.WATER: return '#60a5fa'; // blue-400
-          case RuneType.NATURE: return '#a3e635'; // lime-400
-          case RuneType.LIGHT: return '#facc15'; // yellow-400
-          case RuneType.VOID: return '#a78bfa'; // purple-400
-          case RuneType.POTION: return '#f472b6'; // pink-400
-          default: return '#cbd5e1'; // slate-300
+          case RuneType.FIRE: return '#f87171'; 
+          case RuneType.WATER: return '#60a5fa'; 
+          case RuneType.NATURE: return '#a3e635';
+          case RuneType.LIGHT: return '#facc15'; 
+          case RuneType.VOID: return '#a78bfa'; 
+          case RuneType.POTION: return '#f472b6'; 
+          default: return '#cbd5e1'; 
       }
   };
 
@@ -306,8 +292,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     let comboMultiplier = 1;
     let safetyCounter = 0; 
 
-    // Reset combo tracking at start of a move (if we considered this a "turn")
-    // But processBoard is called per turn.
     setCurrentCombo(0);
     setComboMessage(null);
 
@@ -321,37 +305,26 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       let collectedPotionsCount = 0;
 
       if (matches.length > 0) {
-        
-        // --- VISUAL FEEDBACK LOGIC ---
-        // Increase combo multiplier logic (more points for chains)
         const actualMultiplier = comboMultiplier + (comboMultiplier > 1 ? 1 : 0);
         
-        // Effects for each match
         matches.forEach(m => {
-             // Only spawn particles for actual tiles, not obstacles implicitly destroyed unless we want to
              spawnParticles(m.row, m.col, getRuneColor(m.type));
-
-             // Trigger Big Effects based on Tile PowerUp being activated
              if (m.powerUp === PowerUp.HORIZONTAL) triggerVisualEffect('LASER_H', m.row, m.col);
              if (m.powerUp === PowerUp.VERTICAL) triggerVisualEffect('LASER_V', m.row, m.col);
              if (m.powerUp === PowerUp.COLOR_BOMB) triggerVisualEffect('SHOCKWAVE', m.row, m.col);
              if (m.powerUp === PowerUp.NOVA) triggerVisualEffect('NOVA', m.row, m.col);
         });
 
-        // Determine Center Point for floating text
         const centerTile = matches[Math.floor(matches.length / 2)];
-        // Score Calculation: Base * MatchScore * Combo
         const scoreGain = Math.floor(matchScore * 2 * actualMultiplier);
         addFloatingText(centerTile.row, centerTile.col, scoreGain, comboMultiplier);
         
-        // Haptic/Shake and Sounds based on PowerUp Creation
         const createdNova = newPowerUps.some(p => p.type === PowerUp.NOVA);
         const createdBomb = newPowerUps.some(p => p.type === PowerUp.COLOR_BOMB);
-        const createdDir = newPowerUps.some(p => p.type === PowerUp.HORIZONTAL || p.type === PowerUp.VERTICAL);
-
+        
         if (createdNova) {
             triggerShake('high');
-            audioManager.playSfx('special'); // Distinct sound for high tier
+            audioManager.playSfx('special');
             addFloatingText(centerTile.row, centerTile.col, "SUPREMO!", 6);
         } else if (createdBomb) {
             triggerShake('low');
@@ -362,7 +335,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             audioManager.playSfx('match');
         }
 
-        // Combo UI update
         if (comboMultiplier > 1) {
             setCurrentCombo(comboMultiplier);
             const praise = getComboPraise(comboMultiplier);
@@ -374,15 +346,12 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             }
         }
 
-        // --- SCORE LOGIC ---
         setScore(prev => prev + scoreGain);
         triggerScorePulse();
 
         const { grid: afterMatchGrid, scoreBonus } = handleMatches(activeGrid, matches, newPowerUps);
         activeGrid = afterMatchGrid;
-        if (scoreBonus > 0) {
-            setScore(prev => prev + scoreBonus);
-        }
+        if (scoreBonus > 0) setScore(prev => prev + scoreBonus);
         
         setGrid([...activeGrid]);
         await new Promise(r => setTimeout(r, ANIMATION_DELAY));
@@ -391,6 +360,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
       // Always apply gravity
       const currentPotionsOnBoard = activeGrid.flat().filter(t => t.type === RuneType.POTION).length;
+      // CRITICAL FIX: Only try to spawn if we actually need one, applyGravity prevents overflow internally
       const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotionsOnBoard < 2;
 
       const { grid: gravityGrid, collectedCount } = applyGravity(activeGrid, handlePotionCollected, shouldSpawn);
@@ -411,41 +381,24 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       keepProcessing = matches.length > 0 || collectedPotionsCount > 0;
     }
     
-    // Turn End Cleanup
     setTimeout(() => {
         if(isMountedRef.current) {
             setCurrentCombo(0);
             setComboMessage(null);
+            setIsProcessing(false); // Unlock
         }
-    }, 1000);
-    if(isMountedRef.current) setIsProcessing(false);
+    }, 500);
   }, [handlePotionCollected, gameResult, level.objective]); 
 
   // --- WIN/LOSE ---
   useEffect(() => {
-    // FIX: Wait for processing (combos) to finish before checking win/lose
     if (gameResult || !isGridReady || isEndingRef.current || isProcessing || isAutoShuffling) return;
 
     let hasWon = false;
-    if (level.objective === 'SCORE') {
-        if (score >= level.targetScore) hasWon = true;
-    } else if (level.objective === 'COLLECT_POTIONS') {
-        if (potionsCollected >= level.objectiveTarget) hasWon = true;
-    }
-    
-    // NOTE: Only end immediately if moves run out. 
-    // If goal is reached (Star 1), let them keep playing for higher stars until moves run out?
-    // Standard match-3 usually ends immediately if it's collection, but SCORE levels usually let you play until moves end OR target reached?
-    // Actually, traditionally Score levels end when target reached, but Collection levels end when collection done.
-    // The user complained matches end too fast. So we increased targets. 
-    // We will stick to: End if Won OR End if No Moves.
+    if (level.objective === 'SCORE' && score >= level.targetScore) hasWon = true;
+    else if (level.objective === 'COLLECT_POTIONS' && potionsCollected >= level.objectiveTarget) hasWon = true;
 
     if (hasWon || movesLeft <= 0) {
-        // If we won (reached target), we end. 
-        // If we ran out of moves, we check if we won (collected enough stuff or got enough score).
-        
-        // Double check for Score levels: Only win if score met.
-        // For Potion levels: Only win if Potions met.
         let actualWin = false;
         if (level.objective === 'SCORE' && score >= level.targetScore) actualWin = true;
         if (level.objective === 'COLLECT_POTIONS' && potionsCollected >= level.objectiveTarget) actualWin = true;
@@ -458,7 +411,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             triggerShake('high'); 
 
             const stars = finalScore >= star3Score ? 3 : finalScore >= star2Score ? 2 : 1;
-
             const baseCoins = 50; 
             const starBonus = stars * 25; 
             const movesCoinBonus = movesLeft * 2;
@@ -501,7 +453,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
     const t1 = grid[r1][c1];
     const t2 = grid[r][c];
 
-    // Obstacle Logic
     if (t1.obstacle === ObstacleType.CHAINS || t2.obstacle === ObstacleType.CHAINS || t1.obstacle === ObstacleType.STONE || t2.obstacle === ObstacleType.STONE || t2.isEmpty) {
          setSelectedTile(null);
          triggerShake();
@@ -535,12 +486,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
             const { grid: explodedGrid, score: bombScore } = triggerColorBomb(swappedGrid, isBombA ? swappedGrid[r][c] : swappedGrid[r1][c1], targetTile.type);
             addFloatingText(r, c, bombScore, 1);
             setScore(prev => prev + bombScore);
-            triggerVisualEffect('SHOCKWAVE', r, c); // Effect triggers on bomb use
+            triggerVisualEffect('SHOCKWAVE', r, c);
             setGrid(explodedGrid);
             await new Promise(r => setTimeout(r, ANIMATION_DELAY));
             if(!isMountedRef.current) return;
             
-            // Logic for bomb gravity check
             const currentPotions = explodedGrid.flat().filter(t => t.type === RuneType.POTION).length;
             const shouldSpawn = level.objective === 'COLLECT_POTIONS' && currentPotions < 2;
 
@@ -563,22 +513,24 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
 
       setGrid(newGrid);
       setSelectedTile(null);
+      // Optimistic decrement
       setMovesLeft(prev => prev - 1);
+      
+      // Block interaction immediately
+      setIsProcessing(true);
 
       const { matches } = findMatches(newGrid);
       if (matches.length > 0) {
         processBoard(newGrid);
       } else {
-        setIsProcessing(true);
         await new Promise(r => setTimeout(r, 300));
         if(!isMountedRef.current) return;
 
-        // Swap Back Sound
         audioManager.playSfx('swap');
         newGrid[r1][c1] = { ...tileA, row: r1, col: c1 };
         newGrid[r][c] = { ...tileB, row: r, col: c };
         setGrid([...newGrid]);
-        setMovesLeft(prev => prev + 1); 
+        setMovesLeft(prev => prev + 1); // Revert moves
         setIsProcessing(false);
       }
 
@@ -597,7 +549,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       if (action === 'NEXT' && gameResult.won) {
           onExit(gameResult);
       } else if (action === 'RETRY') {
-          // Reset Level
           setScore(0);
           setMovesLeft(level.moves);
           setPotionsCollected(0);
@@ -628,12 +579,14 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
           const newGrid = shuffleBoard(grid);
           setGrid(newGrid);
           await new Promise(r => setTimeout(r, 300));
-          if(isMountedRef.current) processBoard(newGrid);
+          if(isMountedRef.current) {
+              setIsProcessing(false);
+              processBoard(newGrid);
+          }
       } else if (type === 'moves') {
           setMovesLeft(prev => prev + 5);
       } else if (type === 'bomb') {
           setIsProcessing(true);
-          // Find valid tile to turn into bomb
           const newGrid = grid.map(row => row.map(t => ({...t})));
           const candidates: {r: number, c: number}[] = [];
           for(let r=0; r<BOARD_SIZE; r++){
@@ -655,7 +608,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
           if(isMountedRef.current) setIsProcessing(false);
       }
 
-      // Pay
       if (hasStock) {
           onConsumeBooster(inventoryKey);
       } else {
@@ -665,18 +617,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
   };
 
   const CELL_SIZE_PCT = 100 / BOARD_SIZE;
-
-  const renderObjective = () => {
-      if (level.objective === 'COLLECT_POTIONS') {
-          return (
-              <div className="flex items-center gap-2 text-sm font-bold bg-pink-500/20 px-4 py-1.5 rounded-full border border-pink-500/50 shadow-md">
-                  <FlaskConical size={18} className="text-pink-300 animate-bounce" />
-                  <span className="text-pink-100 font-mono tracking-wider">{potionsCollected} / {level.objectiveTarget}</span>
-              </div>
-          );
-      }
-      return null;
-  };
 
   const renderAbilityButton = (type: 'shuffle' | 'bomb' | 'moves', icon: React.ReactNode) => {
       const inventoryKey = type === 'moves' ? 'moves_5' : type;
@@ -704,15 +644,11 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
       );
   };
 
-  // Progress Bar Calculations
-  // We want a bar that goes from 0 to Star 3 Score.
-  // Markers are placed at Star 1, Star 2, Star 3 positions.
   const barMax = star3Score;
   const barFill = Math.min(100, (score / barMax) * 100);
   
   const star1Pos = (star1Score / barMax) * 100;
   const star2Pos = (star2Score / barMax) * 100;
-  const star3Pos = 100;
 
   return (
     <div className={`flex flex-col h-full w-full ${level.background} text-white relative overflow-hidden`}>
@@ -747,27 +683,19 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         </div>
       </div>
 
-      {/* --- PROGRESS BAR SECTION --- */}
       <div className="px-6 py-3 z-20 flex flex-col gap-2 relative w-full max-w-md mx-auto mt-2">
-         
-         {/* --- META DISPLAY (New) --- */}
          <div className="flex justify-between items-end px-2">
              <div className="flex items-center gap-2 text-amber-300 drop-shadow-md">
                  <Target size={18} />
                  <span className="font-bold uppercase text-sm tracking-wide">Meta:</span>
                  <span className="font-mono font-black text-lg">{level.targetScore}</span>
              </div>
-             
-             {/* Dynamic Next Goal Text */}
              <div className="text-xs font-bold text-slate-300">
                 {score < star1Score ? 'Próxima: ★' : score < star2Score ? 'Próxima: ★★' : score < star3Score ? 'Próxima: ★★★' : 'Máximo!'}
              </div>
          </div>
 
-         {/* Bar Container */}
         <div className="relative h-6 bg-slate-900/80 rounded-full border-2 border-slate-600 shadow-inner">
-            
-            {/* The Fill */}
             <div
                 className="h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r from-green-400 to-emerald-600 shadow-[0_0_10px_rgba(74,222,128,0.5)] relative overflow-hidden"
                 style={{ width: `${barFill}%` }}
@@ -775,53 +703,45 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
                 <div className="absolute top-0 bottom-0 -right-full w-full bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 animate-[wiggle_2s_infinite]"></div>
             </div>
 
-            {/* Star Markers */}
-            {/* Star 1 */}
             <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300" style={{ left: `${star1Pos}%`, transform: 'translate(-50%, -50%)' }}>
                 <div className={`p-1 rounded-full border-2 transition-all ${score >= star1Score ? 'bg-amber-400 border-white scale-125 shadow-lg' : 'bg-slate-800 border-slate-500'}`}>
                     <Star size={12} className={score >= star1Score ? 'text-white fill-white' : 'text-slate-500'} />
                 </div>
             </div>
 
-            {/* Star 2 */}
             <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300" style={{ left: `${star2Pos}%`, transform: 'translate(-50%, -50%)' }}>
                 <div className={`p-1 rounded-full border-2 transition-all ${score >= star2Score ? 'bg-amber-400 border-white scale-125 shadow-lg' : 'bg-slate-800 border-slate-500'}`}>
                     <Star size={14} className={score >= star2Score ? 'text-white fill-white' : 'text-slate-500'} />
                 </div>
             </div>
 
-             {/* Star 3 (End) */}
             <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300" style={{ right: '-10px', transform: 'translate(0, -50%)' }}>
                 <div className={`p-1.5 rounded-full border-2 transition-all ${score >= star3Score ? 'bg-amber-400 border-white scale-125 shadow-lg' : 'bg-slate-800 border-slate-500'}`}>
                     <Star size={16} className={score >= star3Score ? 'text-white fill-white animate-spin-slow' : 'text-slate-500'} />
                 </div>
             </div>
 
-             {/* Score Text */}
              <div className="absolute -bottom-6 w-full text-center">
                  <span className="text-xs font-bold text-white drop-shadow-md font-mono bg-black/30 px-2 rounded-md">
                      {score} pts
                  </span>
              </div>
         </div>
-
-        {/* Level Specific Objective (Potions) underneath */}
         {level.objective === 'COLLECT_POTIONS' && (
              <div className="flex justify-center mt-4 animate-[float-up_0.5s_ease-out]">
-                 {renderObjective()}
+                 <div className="flex items-center gap-2 text-sm font-bold bg-pink-500/20 px-4 py-1.5 rounded-full border border-pink-500/50 shadow-md">
+                    <FlaskConical size={18} className="text-pink-300 animate-bounce" />
+                    <span className="text-pink-100 font-mono tracking-wider">{potionsCollected} / {level.objectiveTarget}</span>
+                 </div>
              </div>
         )}
       </div>
 
-      {/* --- BOARD --- */}
       <div className="flex-1 flex flex-col items-center justify-center p-4 relative pb-24">
-        
-        {/* Fever Mode Vignette (Screen overlay when combo is high) */}
         {currentCombo > 2 && (
              <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-b from-orange-500/10 via-transparent to-red-500/10 animate-pulse transition-opacity duration-500"></div>
         )}
 
-        {/* Combo Overlay UI */}
         {(currentCombo > 1 || comboMessage) && (
             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none flex flex-col items-center">
                 {currentCombo > 1 && (
@@ -838,7 +758,7 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
         )}
 
         {isGridReady ? (
-            <div className={`relative bg-slate-950/80 p-3 rounded-3xl border-4 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.6)] transition-all duration-300 ${isShaking ? 'animate-shake' : ''} ${currentCombo > 2 ? 'fever-mode border-amber-500' : 'border-slate-700/50'}`}>
+            <div className={`relative bg-slate-950/80 p-3 rounded-3xl border-4 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.6)] transition-all duration-300 ${isShaking ? 'animate-shake' : ''} ${currentCombo > 2 ? 'fever-mode border-amber-500' : 'border-slate-700/50'} ${isProcessing ? 'pointer-events-none cursor-wait' : ''}`}>
                 <div className="relative" style={{ width: 'min(90vw, 400px)', height: 'min(90vw, 400px)' }}>
                 {grid.flat().map((tile) => (
                     <div
@@ -861,9 +781,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
                     </div>
                 ))}
                 
-                {/* Visual Effects Layer (Above tiles, below HUD) */}
-                
-                {/* 1. Lasers & Shockwaves */}
                 {activeEffects.map(fx => (
                      <div key={fx.id}>
                          {fx.type === 'LASER_H' && <div className="fx-laser-h" style={{ top: `${fx.r * CELL_SIZE_PCT + 2}%` }}></div>}
@@ -881,13 +798,12 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
                      </div>
                 ))}
 
-                {/* 2. Particles */}
                 {particles.map(p => (
                     <div 
                         key={p.id}
                         className="particle z-40"
                         style={{
-                            top: `calc(${p.r * CELL_SIZE_PCT}% + 6%)`, // Center roughly
+                            top: `calc(${p.r * CELL_SIZE_PCT}% + 6%)`, 
                             left: `calc(${p.c * CELL_SIZE_PCT}% + 6%)`,
                             backgroundColor: p.color,
                             '--tx': p.tx,
@@ -897,7 +813,6 @@ const Game: React.FC<GameProps> = ({ level, onExit, currentCoins, onSpendCoins, 
                     />
                 ))}
 
-                {/* 3. Floating Text */}
                 {floatingTexts.map(ft => (
                     <div key={ft.id} className={`absolute pointer-events-none animate-float-up whitespace-nowrap z-50 ${ft.className}`} style={{ top: `${ft.r * CELL_SIZE_PCT}%`, left: `${ft.c * CELL_SIZE_PCT}%` }}>{ft.text}</div>
                 ))}

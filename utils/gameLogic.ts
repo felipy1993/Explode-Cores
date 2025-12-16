@@ -98,7 +98,6 @@ export const shuffleBoard = (grid: Grid): Grid => {
 // --- CHECK FOR POSSIBLE MOVES ---
 export const hasPossibleMoves = (grid: Grid): boolean => {
     // Clone grid minimalistically to simulate swaps
-    // We only need types and obstacles
     const tempGrid = grid.map(row => row.map(t => ({...t})));
 
     const check = (r: number, c: number) => {
@@ -107,19 +106,13 @@ export const hasPossibleMoves = (grid: Grid): boolean => {
             const t1 = tempGrid[r][c];
             const t2 = tempGrid[r][c+1];
             if (!t1.isEmpty && !t2.isEmpty && t1.obstacle !== ObstacleType.STONE && t2.obstacle !== ObstacleType.STONE && t1.obstacle !== ObstacleType.CHAINS && t2.obstacle !== ObstacleType.CHAINS) {
-                // Swap types
                 const type1 = t1.type;
                 const type2 = t2.type;
                 t1.type = type2;
                 t2.type = type1;
-                
-                // Check match
                 const { matches } = findMatches(tempGrid);
-                
-                // Swap back
                 t1.type = type1;
                 t2.type = type2;
-
                 if (matches.length > 0) return true;
             }
         }
@@ -128,19 +121,13 @@ export const hasPossibleMoves = (grid: Grid): boolean => {
             const t1 = tempGrid[r][c];
             const t2 = tempGrid[r+1][c];
              if (!t1.isEmpty && !t2.isEmpty && t1.obstacle !== ObstacleType.STONE && t2.obstacle !== ObstacleType.STONE && t1.obstacle !== ObstacleType.CHAINS && t2.obstacle !== ObstacleType.CHAINS) {
-                // Swap types
                 const type1 = t1.type;
                 const type2 = t2.type;
                 t1.type = type2;
                 t2.type = type1;
-                
-                // Check match
                 const { matches } = findMatches(tempGrid);
-                
-                // Swap back
                 t1.type = type1;
                 t2.type = type2;
-
                 if (matches.length > 0) return true;
             }
         }
@@ -155,8 +142,8 @@ export const hasPossibleMoves = (grid: Grid): boolean => {
     return false;
 };
 
-// --- OBSTACLE DAMAGE LOGIC ---
-const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: number } => {
+// --- OBSTACLE DAMAGE LOGIC (ADJACENT) ---
+const damageAdjacentObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: number } => {
     const newGrid = grid.map(row => row.map(t => ({...t})));
     let extraScore = 0;
     const damagedIds = new Set<string>();
@@ -167,17 +154,20 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         
         if (tile.isEmpty || damagedIds.has(tile.id)) return;
 
+        // Break Overlay Obstacles (Ice/Chains) that are adjacent? 
+        // Typically Ice/Chains break when the tile INSIDE is matched, handled in main logic.
+        // But Stones break on adjacent matches.
         if (tile.obstacle === ObstacleType.STONE && tile.status !== TileStatus.MATCHED) {
             tile.obstacleHealth -= 1;
             damagedIds.add(tile.id);
-            extraScore += 20; // SCORE BALANCE: Moderate points for hitting obstacles
-            tile.status = TileStatus.NEW; 
+            extraScore += 20; 
+            tile.status = TileStatus.NEW; // Trigger shake/pop animation
 
             if (tile.obstacleHealth <= 0) {
                 tile.obstacle = ObstacleType.NONE;
                 tile.type = getRandomRune(); 
                 tile.status = TileStatus.NEW;
-                extraScore += 40; // SCORE BALANCE: Bonus for destroying
+                extraScore += 40;
             }
         }
     };
@@ -188,10 +178,11 @@ const damageObstacles = (grid: Grid, matches: Tile[]): { grid: Grid, score: numb
         hit(t.row, t.col - 1);
         hit(t.row, t.col + 1);
 
+        // Also check if the matched tile itself had an overlay
         const gridTile = newGrid[t.row][t.col];
         if (gridTile.obstacle === ObstacleType.ICE || gridTile.obstacle === ObstacleType.CHAINS) {
              gridTile.obstacle = ObstacleType.NONE;
-             extraScore += 30; // SCORE BALANCE
+             extraScore += 30;
         }
     });
 
@@ -205,7 +196,7 @@ const collectExplosions = (
   startTiles: Tile[], 
   visitedIds: Set<string> = new Set()
 ): { tiles: Tile[], score: number } => {
-  const tilesToDestroy: Tile[] = [];
+  const tilesToProcess: Tile[] = [];
   const queue = [...startTiles];
   let totalScore = 0;
 
@@ -215,13 +206,11 @@ const collectExplosions = (
     if (visitedIds.has(tile.id)) continue;
     visitedIds.add(tile.id);
     
-    tilesToDestroy.push(tile);
-    // SCORE BALANCE: Base score per tile. 
-    // 10 points is standard. A match-3 = 30 pts.
+    tilesToProcess.push(tile);
     totalScore += 10; 
 
     if (tile.powerUp !== PowerUp.NONE) {
-      totalScore += 20; // Bonus for destroying a powerup itself
+      totalScore += 20; 
       let targets: {r: number, c: number}[] = [];
 
       if (tile.powerUp === PowerUp.HORIZONTAL) {
@@ -241,7 +230,6 @@ const collectExplosions = (
          }
       } 
       else if (tile.powerUp === PowerUp.NOVA) {
-        // Nova is 5x5 area (Radius 2)
         for (let r = tile.row - 2; r <= tile.row + 2; r++) {
             for (let c = tile.col - 2; c <= tile.col + 2; c++) {
                 if (isValid(r, c)) targets.push({ r, c });
@@ -258,7 +246,7 @@ const collectExplosions = (
     }
   }
 
-  return { tiles: tilesToDestroy, score: totalScore };
+  return { tiles: tilesToProcess, score: totalScore };
 };
 
 export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): { grid: Grid, score: number, count: number } => {
@@ -266,15 +254,17 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
     let score = 0;
     let count = 0;
     
+    // Explode the bomb itself
     if (newGrid[bomb.row][bomb.col].status !== TileStatus.MATCHED) {
         newGrid[bomb.row][bomb.col].status = TileStatus.MATCHED;
         newGrid[bomb.row][bomb.col].type = RuneType.WILD;
-        score += 200; // Big bonus, but not game-breaking
+        score += 200; 
     }
 
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
             const tile = newGrid[r][c];
+            // Target all runes of type, but NOT stones directly (unless stones act as blockers, handled later)
             if (!tile.isEmpty && tile.obstacle === ObstacleType.NONE && tile.type === targetType && tile.status !== TileStatus.MATCHED) {
                 newGrid[r][c].status = TileStatus.MATCHED;
                 newGrid[r][c].type = RuneType.WILD;
@@ -287,44 +277,9 @@ export const triggerColorBomb = (grid: Grid, bomb: Tile, targetType: RuneType): 
     return { grid: newGrid, score, count };
 };
 
-// --- ADVANCED CLUSTER MATCHING SYSTEM ---
-
-// Identify matchable tiles
+// --- CLUSTER ANALYSIS ---
 const isMatchable = (t: Tile) => !t.isEmpty && t.obstacle !== ObstacleType.STONE && t.type !== RuneType.POTION && t.status !== TileStatus.MATCHED;
 
-// BFS to find connected component of same-colored tiles
-const getCluster = (startTile: Tile, grid: Grid, visited: Set<string>): Tile[] => {
-    const cluster: Tile[] = [];
-    const queue: Tile[] = [startTile];
-    const type = startTile.type;
-    visited.add(startTile.id);
-    cluster.push(startTile);
-
-    while(queue.length > 0) {
-        const t = queue.shift()!;
-        const neighbors = [
-            {r: t.row - 1, c: t.col}, {r: t.row + 1, c: t.col},
-            {r: t.row, c: t.col - 1}, {r: t.row, c: t.col + 1}
-        ];
-
-        for(const n of neighbors) {
-            if(isValid(n.r, n.c)) {
-                const neighbor = grid[n.r][n.c];
-                // Check if matchable, same type, not visited, and IS PART OF A MATCH (pre-flagged by basic scan)
-                // Actually, we should just check type similarity for now, but to ensure we only group actual matches,
-                // we'll rely on the input 'matches' set to filter initially.
-                if(isMatchable(neighbor) && neighbor.type === type && !visited.has(neighbor.id)) {
-                    visited.add(neighbor.id);
-                    cluster.push(neighbor);
-                    queue.push(neighbor);
-                }
-            }
-        }
-    }
-    return cluster;
-};
-
-// Determine geometric properties of a cluster
 const analyzeCluster = (cluster: Tile[]): { 
     width: number, 
     height: number, 
@@ -342,12 +297,8 @@ const analyzeCluster = (cluster: Tile[]): {
 
     const width = maxC - minC + 1;
     const height = maxR - minR + 1;
-
-    // A cluster is a "line" if it has thickness 1 in either dimension
     const isLine = (width === 1) || (height === 1);
 
-    // Find Intersection (Pivot)
-    // The tile with the most neighbors in the cluster is likely the intersection/center
     let maxNeighbors = -1;
     let intersectionTile = cluster[0];
 
@@ -369,7 +320,7 @@ const analyzeCluster = (cluster: Tile[]): {
 export const findMatches = (grid: Grid): { matches: Tile[], score: number, newPowerUps: {r: number, c: number, type: PowerUp}[] } => {
   const matchSet = new Set<Tile>();
 
-  // 1. Basic Scan: Identify tiles that form at least a 3-match
+  // 1. Basic Scan
   // Horizontal
   for (let r = 0; r < BOARD_SIZE; r++) {
     let run: Tile[] = [];
@@ -408,20 +359,16 @@ export const findMatches = (grid: Grid): { matches: Tile[], score: number, newPo
     if (run.length >= 3) run.forEach(rt => matchSet.add(rt));
   }
 
-  // 2. Cluster Analysis (BFS)
-  // Group all matched tiles into connected components
+  // 2. Cluster Analysis & PowerUp Creation
   const visited = new Set<string>();
   const newPowerUps: {r: number, c: number, type: PowerUp}[] = [];
   const allInitialMatches = Array.from(matchSet);
   const matchedIds = new Set(allInitialMatches.map(t => t.id));
-
-  // We need to run BFS only on tiles that are in 'matchSet'
   const clusterVisited = new Set<string>();
   
   for (const tile of allInitialMatches) {
       if (clusterVisited.has(tile.id)) continue;
 
-      // Custom BFS that only traverses neighbors if they are ALSO in matchSet
       const cluster: Tile[] = [];
       const queue: Tile[] = [tile];
       clusterVisited.add(tile.id);
@@ -445,42 +392,25 @@ export const findMatches = (grid: Grid): { matches: Tile[], score: number, newPo
           }
       }
 
-      // 3. Determine PowerUp Logic based on Cluster Geometry
       const count = cluster.length;
       const { width, height, isLine, intersectionTile } = analyzeCluster(cluster);
-      
       let powerType = PowerUp.NONE;
 
-      // RULES IMPLEMENTATION
-      
-      // Rule 1: Match 6+ (Any Shape) -> Supreme Power (Nova/Area)
-      if (count >= 6) {
-          powerType = PowerUp.NOVA;
-      }
-      // Rule 2: Match 5 (L, T, Cross) -> Area Power (Nova)
-      else if (count >= 5 && !isLine) {
-          powerType = PowerUp.NOVA;
-      }
-      // Rule 3: Match 5 (Linear) -> Color Bomb
-      else if (count === 5 && isLine) {
-          powerType = PowerUp.COLOR_BOMB;
-      }
-      // Rule 4: Match 4 (Linear) -> Directional
-      else if (count === 4 && isLine) {
-          // Determine orientation
-          // Horizontal match creates VERTICAL blaster usually (mechanic choice)
-          powerType = (width > height) ? PowerUp.HORIZONTAL : PowerUp.VERTICAL; 
-      }
+      if (count >= 6) powerType = PowerUp.NOVA;
+      else if (count >= 5 && !isLine) powerType = PowerUp.NOVA;
+      else if (count === 5 && isLine) powerType = PowerUp.COLOR_BOMB;
+      else if (count === 4 && isLine) powerType = (width > height) ? PowerUp.HORIZONTAL : PowerUp.VERTICAL;
 
       if (powerType !== PowerUp.NONE && intersectionTile) {
           newPowerUps.push({ r: intersectionTile.row, c: intersectionTile.col, type: powerType });
       }
   }
 
+  // 3. Explosion Propagation (handles blast radius of matched powerups)
   const { tiles: finalTilesToClear, score } = collectExplosions(grid, allInitialMatches);
   
-  // Filter out tiles that will become powerups so they don't get destroyed by the explosion logic immediately
   const powerUpLocs = new Set(newPowerUps.map(p => `${p.r},${p.c}`));
+  // Exclude new powerup locations from being destroyed this turn
   const cleanTilesToClear = finalTilesToClear.filter(t => !powerUpLocs.has(`${t.row},${t.col}`));
 
   return { matches: cleanTilesToClear, score, newPowerUps };
@@ -492,25 +422,62 @@ export const handleMatches = (
     newPowerUps: {r: number, c: number, type: PowerUp}[]
 ): { grid: Grid, scoreBonus: number } => {
   let activeGrid = grid.map(row => row.map(tile => ({ ...tile })));
-  
-  // 1. Mark matched tiles
+  let scoreBonus = 0;
+
+  // 1. Process "Hits" on Tiles
   matches.forEach(tile => {
-    activeGrid[tile.row][tile.col].status = TileStatus.MATCHED;
-    activeGrid[tile.row][tile.col].type = RuneType.WILD;
+    const currentTile = activeGrid[tile.row][tile.col];
+
+    // CRITICAL FIX: If it's a stone, damage it instead of destroying it
+    // Unless it's already marked as matched (to avoid double processing)
+    if (currentTile.obstacle === ObstacleType.STONE) {
+        if (currentTile.status !== TileStatus.MATCHED) {
+            currentTile.obstacleHealth -= 1;
+            currentTile.status = TileStatus.NEW; // Trigger shake
+            scoreBonus += 20;
+
+            if (currentTile.obstacleHealth <= 0) {
+                currentTile.obstacle = ObstacleType.NONE;
+                currentTile.type = getRandomRune(); 
+                currentTile.status = TileStatus.MATCHED; // Mark for clearing
+                currentTile.type = RuneType.WILD;
+                scoreBonus += 40;
+            }
+        }
+    } else {
+        // Normal tile or Ice/Chains (which are overlays and break instantly on match)
+        currentTile.status = TileStatus.MATCHED;
+        currentTile.type = RuneType.WILD;
+        
+        // Break overlays if they exist on the matched tile
+        if (currentTile.obstacle === ObstacleType.ICE || currentTile.obstacle === ObstacleType.CHAINS) {
+            currentTile.obstacle = ObstacleType.NONE;
+            scoreBonus += 30;
+        }
+    }
   });
 
-  // 2. Create PowerUps
+  // 2. Create PowerUps (Overrides any destruction status)
   newPowerUps.forEach(p => {
     activeGrid[p.r][p.c].status = TileStatus.NEW; 
     activeGrid[p.r][p.c].powerUp = p.type;
     activeGrid[p.r][p.c].type = grid[p.r][p.c].type; 
+    activeGrid[p.r][p.c].obstacle = ObstacleType.NONE; // Powerup replaces obstacles if created there
   });
 
-  // 3. Damage Obstacles adjacent to matches
-  const { grid: damagedGrid, score: obstacleScore } = damageObstacles(activeGrid, matches);
-  activeGrid = damagedGrid;
+  // 3. Damage Neighbors (Chain Reaction for adjacent stones)
+  // We only pass tiles that were ACTUALLY effectively matched/destroyed to damage neighbors
+  // If a stone took damage but survived, it doesn't trigger neighbor damage (usually)
+  const effectivelyMatched = matches.filter(t => {
+      const gT = activeGrid[t.row][t.col];
+      return gT.status === TileStatus.MATCHED || gT.powerUp !== PowerUp.NONE; 
+  });
 
-  return { grid: activeGrid, scoreBonus: obstacleScore };
+  const { grid: damagedGrid, score: obstacleScore } = damageAdjacentObstacles(activeGrid, effectivelyMatched);
+  activeGrid = damagedGrid;
+  scoreBonus += obstacleScore;
+
+  return { grid: activeGrid, scoreBonus };
 };
 
 export const applyGravity = (
@@ -521,6 +488,9 @@ export const applyGravity = (
   const finalGrid = grid.map(row => row.map(t => ({...t})));
   let collectedCount = 0;
   
+  // Track if we have already spawned a potion this turn to prevent "Potion Floods"
+  let hasSpawnedPotionThisTurn = false;
+
   for (let c = 0; c < BOARD_SIZE; c++) {
       const colTiles: Tile[] = [];
       const structure: ('EMPTY' | 'STONE' | 'SLOT')[] = []; 
@@ -530,73 +500,76 @@ export const applyGravity = (
           else if (grid[r][c].obstacle === ObstacleType.STONE) structure.push('STONE');
           else structure.push('SLOT');
 
+          // Collect falling tiles
           if (!grid[r][c].isEmpty && grid[r][c].obstacle !== ObstacleType.STONE && grid[r][c].status !== TileStatus.MATCHED) {
               colTiles.push(grid[r][c]);
           }
       }
 
       let tileIdx = colTiles.length - 1;
-      let potionsSpawnedInColumn = 0;
       
       for (let r = BOARD_SIZE - 1; r >= 0; r--) {
-          if (structure[r] === 'EMPTY') {
-              finalGrid[r][c] = { ...grid[r][c] };
-          } else if (structure[r] === 'STONE') {
+          if (structure[r] === 'EMPTY' || structure[r] === 'STONE') {
               finalGrid[r][c] = { ...grid[r][c] };
           } else {
+              // We need to fill this slot
               if (tileIdx >= 0) {
+                  // Existing tile falling down
                   const tile = colTiles[tileIdx];
-                  const isBottom = (r === BOARD_SIZE - 1) || (structure[r+1] === 'EMPTY');
+                  const isBottom = (r === BOARD_SIZE - 1) || (structure[r+1] === 'EMPTY'); // Simple bottom check
                   
-                  if (tile.type === RuneType.POTION && isBottom) {
+                  // Potion Collection Logic
+                  if (tile.type === RuneType.POTION && r === BOARD_SIZE - 1) { // Only collect at very bottom row for simplicity
                       collectedCount++;
                       if (potionCountCb) potionCountCb(r, c);
+                      // Don't place this tile, consume it.
                       tileIdx--; 
+                      
+                      // We need to fill THIS slot `r` now with the next available or new
                       if (tileIdx >= 0) {
-                          const nextTile = colTiles[tileIdx];
-                          finalGrid[r][c] = { ...nextTile, row: r, col: c, status: TileStatus.DROPPING };
-                          tileIdx--;
+                           // Pull next
+                           const nextTile = colTiles[tileIdx];
+                           finalGrid[r][c] = { ...nextTile, row: r, col: c, status: TileStatus.DROPPING };
+                           tileIdx--;
                       } else {
-                          finalGrid[r][c] = {
-                            id: generateId(),
-                            type: getRandomRune(),
-                            status: TileStatus.NEW,
-                            powerUp: PowerUp.NONE,
-                            obstacle: ObstacleType.NONE,
-                            obstacleHealth: 0,
-                            isEmpty: false,
-                            row: r,
-                            col: c
-                        };
+                           // Generate new
+                           finalGrid[r][c] = generateNewTile(r, c, shouldSpawnPotion && !hasSpawnedPotionThisTurn);
+                           if (finalGrid[r][c].type === RuneType.POTION) hasSpawnedPotionThisTurn = true;
                       }
                   } else {
                       finalGrid[r][c] = { ...tile, row: r, col: c, status: TileStatus.DROPPING };
                       tileIdx--;
                   }
               } else {
-                  let type = getRandomRune();
-                  if (shouldSpawnPotion && potionsSpawnedInColumn === 0 && Math.random() < 0.25) {
-                      type = RuneType.POTION;
-                      potionsSpawnedInColumn++;
-                  }
-
-                  finalGrid[r][c] = {
-                      id: generateId(),
-                      type,
-                      status: TileStatus.NEW,
-                      powerUp: PowerUp.NONE,
-                      obstacle: ObstacleType.NONE,
-                      obstacleHealth: 0,
-                      isEmpty: false,
-                      row: r,
-                      col: c
-                  };
+                  // Generate New Tile
+                  finalGrid[r][c] = generateNewTile(r, c, shouldSpawnPotion && !hasSpawnedPotionThisTurn);
+                  if (finalGrid[r][c].type === RuneType.POTION) hasSpawnedPotionThisTurn = true;
               }
           }
       }
   }
 
   return { grid: finalGrid, collectedCount };
+};
+
+const generateNewTile = (r: number, c: number, allowPotion: boolean | undefined): Tile => {
+    let type = getRandomRune();
+    // 25% chance to spawn potion IF allowed and not already spawned this frame
+    if (allowPotion && Math.random() < 0.25) {
+        type = RuneType.POTION;
+    }
+
+    return {
+        id: generateId(),
+        type,
+        status: TileStatus.NEW,
+        powerUp: PowerUp.NONE,
+        obstacle: ObstacleType.NONE,
+        obstacleHealth: 0,
+        isEmpty: false,
+        row: r,
+        col: c
+    };
 };
 
 export const resetStatus = (grid: Grid): Grid => {
